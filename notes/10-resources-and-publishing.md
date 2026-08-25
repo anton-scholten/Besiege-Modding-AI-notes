@@ -69,6 +69,26 @@ The same job on Windows is
 [SteamChangePreview](https://github.com/TechnologicNick/SteamChangePreview),
 which is where the approach came from.
 
+## A read-only file in the staging folder stops every upload
+
+`WorkshopManager.CreateUploadFolder` empties `Besiege_Data/WorkshopUpload/` before
+each publish, and Mono's `File.Delete` refuses a file with the read-only attribute
+rather than clearing it. So one unwritable file left in there blocks not just its
+own mod but **every** upload from then on, with an error that names the delete and
+not the reason.
+
+The way it happens: a previous upload copied a mod folder that had a `.git`
+directory in it, and git writes its object files `0444`. The whole staging tree is
+then undeletable.
+
+Two consequences worth designing for:
+
+- Keep the folder Besiege uploads free of anything version-controlled. Put the mod
+  in a subfolder of the repository — `MyMod/` beside `docs/` and `tools/` — so the
+  uploaded folder is only ever the mod, and `.git` sits outside it.
+- If it has already happened, `chmod -R u+w` on `Besiege_Data/WorkshopUpload/` and
+  delete it by hand. Nothing in the game will do it for you.
+
 ## `<ID>` and what breaks
 
 The `<ID>` GUID is written by the game on first load. Saved machines and levels

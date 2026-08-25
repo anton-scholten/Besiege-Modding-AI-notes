@@ -18,6 +18,37 @@ console, and `createmod` / `createblock` / `createentity` scaffold the XML.
 copy outside
 `Besiege_Data/Mods/` gets loaded without copying it in.
 
+## Installing during development: symlink the mod folder
+
+Besiege loads mods from `Besiege_Data/Mods/`, one folder per mod, and reads them
+**once at startup** — so every change needs a game restart, but not a reinstall if
+the entry is a symlink:
+
+```sh
+ln -s /path/to/repo/MyMod "$BESIEGE/Besiege_Data/Mods/MyMod"
+```
+
+The link target is whatever folder holds `Mod.xml`. Both layouts are in use and
+both work: the repository root itself, or a subfolder beside the sources and tools.
+A subfolder is tidier, because then only the mod ships and the `.cs`, `tools/` and
+`docs/` beside it are obviously not part of it. Besiege reads only what `Mod.xml`
+names, so sources left inside the mod folder are ignored either way.
+
+Three things worth building into an install script:
+
+- **`<ID>` is generated into `Mod.xml` on first load.** With a symlink that write
+  lands in your working copy, which is what you want — the ID must stay stable for
+  the life of the mod, so commit it. With a copy, the game writes into the copy and
+  your repository never gets it.
+- **Validate the manifest before installing.** A malformed `Mod.xml` produces no
+  error in game: the mod simply never appears in the list, which is
+  indistinguishable from not having installed it. Parse it, and check that every
+  path named by `<Assembly>`, `<Block>`, `<Texture>` and `<Mesh>` exists. (An easy
+  way to get there is `--` inside an XML comment, which XML does not allow.)
+- **Build before you copy.** If the mod ships a prebuilt `<Assembly>` rather than a
+  `<ScriptAssembly>`, a checkout has to carry a built DLL or it does not load —
+  so commit the DLL, and have `--copy` snapshot the folder only after a build.
+
 ## Where a mod may write
 
 `Modding.ModIO` is the sanctioned file API — and the only one available, since
@@ -119,9 +150,12 @@ It is **C# 4**, and old:
 - **any `enum` declaration segfaults it** — use `int` constants;
 - Besiege declares types in the **global namespace** that collide with Unity's,
   and C# checks the global namespace before `using` directives. Enumerated against
-  `UnityEngine`, `UnityEngine.UI` and `UnityEngine.EventSystems`, there are exactly
-  four: **`Slider`, `Scrollbar`, `LOD` and `Particle`**. Spell those four out in
-  full; `Text`, `Image`, `Button`, `Canvas` and the rest are safe unqualified.
+  `UnityEngine`, `UnityEngine.UI` and `UnityEngine.EventSystems`, four are worth
+  knowing: **`Slider`, `Scrollbar`, `LOD` and `Particle`**. Spell those out in
+  full; `Text`, `Image`, `Button`, `Canvas`, `Toggle`, `Dropdown` and `InputField`
+  are safe unqualified, and `EventSystems` collides with nothing. (A fifth name,
+  `UnityLogWriter`, collides too, and is named here only so the enumeration is not
+  silently short — nobody writes it.)
   The symptom is a baffling error against `Assembly-CSharp.dll` — "Type `Slider'
   does not contain a definition for `value'";
 - never name a member the same as its own type; the compiler resolves the member
@@ -185,9 +219,61 @@ the XML did not supply as *"... must have &lt;name&gt; attribute!"* — after wh
 
 So: a field with `[DefaultValue]` is optional, a field without one is mandatory in
 every element of that kind. Besiege's own modules mark their optional attributes
-the same way. This is cheap to get wrong and expensive to diagnose, because the
-symptom is a missing block rather than an error, so it is worth a build-time check
-that reads the module source and the block XMLs and holds them to each other.
+the same way — `Modding.Modules.Official.ShootingModule` marks eight. This is
+cheap to get wrong and expensive to diagnose, because the symptom is a missing
+block rather than an error, so it is worth a build-time check that reads the
+module source and the block XMLs and holds them to each other.
+
+**A C# field initialiser does not make an attribute optional.** `public float
+Decay = 2f;` still fails without the marker: the initialiser is what the value
+*becomes*, `[DefaultValue(2f)]` is what makes the attribute optional, and you
+want both. Writing the initialisers and assuming they were enough cost a mod nine
+blocks that would not load.
+
+**`Validate` returns at the first failure**, so the log names one attribute in one
+file even when a dozen are wrong. Fix them from the source, not one launch at a
+time.
+
+**A `UnityEngine.Vector3` field on a module deserialises wrongly, and only warns.**
+Before it checks anything else, `Validate` walks the members looking for that exact
+type and logs
+
+> `<Type>.<field>: UnityEngine.Vector3 does not deserialize correctly. Consider
+> using Modding.Serialization.Vector3 instead.`
+
+then carries on and loads the block. So the block appears, works, and quietly has
+the wrong numbers in it — the one failure in this whole area that is not a missing
+block. Use `Modding.Serialization.Vector3` in anything a module deserialises.
+
+That has a knock-on worth planning for: `using Modding.Serialization;` puts a
+second `Vector3` in scope, so a file that imports it *and* uses Unity's own
+`Vector3` no longer compiles. Keep the module classes in their own file, import
+`Modding.Serialization` only there, and let the behaviour files use Unity's.
+
+## `modid` on a module element is optional
+
+This one is widely got wrong, including in an earlier version of this note.
+`CustomModules.DeserializeBlockModules` reads the element's `modid` attribute and
+branches on whether it is there at all:
+
+```csharp
+// no modid: resolve against the mod that owns this block XML
+registeredModules[elementName].FirstOrDefault(g => g.Mod == containingMod)
+
+// modid present: resolve by mod GUID, and nothing else is consulted
+registeredModules[elementName].FirstOrDefault(g => g.Mod.Info.Id.ToString() == modId)
+```
+
+So **omitting it is correct and normal** — the loader already knows which mod the
+file came from. It exists so a block XML can use a module that a *different* mod
+registered. `createblock` writes one, which is why most block XML in the wild has
+one and why it looks compulsory.
+
+The asymmetry is the trap: an absent `modid` is fine, a **wrong** one is fatal and
+silent, because the GUID lookup is then the only thing tried. `Mod.xml`'s `<ID>`
+is generated by the game on first load, so a value copied from another mod, or
+written by hand before that first load, finds no module group at all. If you check
+it at build time, check it only where it is present.
 
 ## When a block does not appear
 
@@ -198,8 +284,21 @@ In rough order of likelihood:
 2. a required element is missing: `ID`, `Name`, `Mesh`, `Texture`, `Colliders`,
    `BasePoint`, `AddingPoints`. `BasePoint` is the one that bites;
 3. a module attribute is missing per the rule above;
-4. `Mod.xml` has no `<ID>` yet, or the block's `modid` does not match it;
+4. the block's `modid`, *if it has one*, does not match `Mod.xml`'s `<ID>` — an
+   absent `modid` is legal, see above;
 5. the assembly was refused by the blacklist.
 
 None of these say anything useful in the toolbar. All of them say something in
-`Player.log`.
+`Player.log`, under the tag `[Mods]`:
+
+```sh
+grep -a 'Mods\]' ~/.config/unity3d/Spiderling\ Games/Besiege/Player.log
+```
+
+**Search for that tag, not for your mod's name.** The loader's messages name the
+*file* and the *element* — `InstrumentType (at line 16, column 6 in Piano.xml)
+must have loops attribute!` — and never the mod, so grepping for what you called
+it returns nothing and reads exactly like a mod that was never loaded. That
+mistake cost one debugging session an entire wrong diagnosis: the log had all nine
+errors in it the whole time. `-a` matters too, because the log picks up bytes that
+make grep treat it as binary.

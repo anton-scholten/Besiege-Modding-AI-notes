@@ -44,9 +44,43 @@ time it is called in a fixed step and returns the same answer for the rest of it
 Poll it from `Update` and a single variable press lands two or three times at a
 high frame rate, or is missed entirely at a low one.
 
-Reset the latches when a run starts or stops — Besiege keeps a behaviour alive
-between runs, so an edge caught at the end of one otherwise fires at the start of
-the next.
+Measured, on a block with two keys: modelling Besiege's 100 Hz step and the
+`everyOther` gate in `Machine.FixedUpdate`, a variable held for **one** fixed step
+reached a naive `Update`-side edge 7 times in 20 at 30 fps, 1 time in 20 at 15 fps,
+and 20 times in 20 with the latch. Above 60 fps the two agree, which is exactly why
+this survives testing.
+
+**With more than one key, do not let `||` short-circuit past one of them.** Each
+`MKey` advances *its own* snapshot, and only when one of *its own* edge methods is
+called — `EmulationValue()` does not do it. So
+
+```csharp
+bool pressed = left.EmulationPressed() || right.EmulationPressed();   // WRONG
+```
+
+leaves `right` unpolled for every step in which `left` fired, and on the next step
+its `wasEmulating` is two steps stale. Call all of them into locals first, then
+combine:
+
+```csharp
+bool lp = left.EmulationPressed(),  rp = right.EmulationPressed();
+bool lr = left.EmulationReleased(), rr = right.EmulationReleased();
+emulatedPress   |= lp || rp;
+emulatedRelease |= lr || rr;
+```
+
+Calling both `EmulationPressed` and `EmulationReleased` on the same key in the same
+step is fine — the snapshot advance is inside an `if (fixedTime != Time.fixedTime)`,
+so it happens once however many times you ask.
+
+Do **not** add an `OnSimulateStart` that clears the latches: a sim behaviour is a
+fresh object every run and its private fields are already at their defaults. See
+[08-block-lifecycle.md](08-block-lifecycle.md).
+
+Guard the override, too. `SafeAwake` builds no mapper controls on a simulating
+client without physics, but `EmulationUpdateBlock` checks only `isSimulating`, so
+`KeyEmulationUpdate` runs there with every `MKey` field still null. Besiege's own
+`SteeringModuleBehaviour` has the same hole; `if (key == null) return;` closes it.
 
 ## Variables are keys with names
 
@@ -89,6 +123,49 @@ press at all**, and the key does not come up until the last one lets go. Anythin
 generating a stream of events onto one name — a sequencer, a repeated trigger —
 has to leave a gap between them. Sixty milliseconds is comfortably below what a
 player notices and comfortably above a fixed step.
+
+### Trap 3: `IsReleased` is the one key property that does not check `useMessage`
+
+Binding a key to a variable is supposed to take the keyboard out of it, and three
+of the four properties implement that by testing `useMessage` first:
+
+| property | tests `useMessage`? | with a variable bound |
+| --- | --- | --- |
+| `Value` | yes | `0` |
+| `IsPressed` | yes | `false` |
+| `IsHeld` | yes | `false` |
+| **`IsReleased`** | **no** | **`true` when the keyboard key comes up** |
+
+`get_IsReleased` guards on `ignored`, on `Value > 0` and on `MouseKeyBlocked()`,
+and then walks the keycodes. `Value` is 0 under a variable, so it walks them — and
+`KeySelector.SetVariable` leaves the block's keycodes in place, so they are still
+there to answer.
+
+The effect is a block that has been handed over to automation still reacting when
+the player brushes the arrow key it used to use. Return 2 Center's side-to-side
+sweep stopped dead that way. Anything reading a release edge wants
+
+```csharp
+bool released = !key.useMessage && key.IsReleased;
+```
+
+`useMessage` is a public field, so this needs nothing clever. The variable's own
+release arrives through `EmulationReleased()` as usual.
+
+### Trap 4: `MKey.IsDown` is deprecated and says so on every call
+
+`get_IsDown` is
+
+```
+Debug.LogWarning("IsDown is deprecated, please use IsHeld");
+return IsHeld;
+```
+
+so a block polling it per frame writes a line to the log every frame of every run.
+It is easy to miss because it works — the value is right, the console is just full.
+Note that `KeyInputController.KeyInfo` has an `IsDown` of its own that is *not*
+deprecated, which is why the name still reads as current in the game's own code.
+Use `MKey.IsHeld`.
 
 ## The timer block
 

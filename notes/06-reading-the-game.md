@@ -72,6 +72,10 @@ something new, add its API to the list along with the prose.
 its name and its type; only `Awake` (which finds it by tag) and `UpdateBackground`
 (which clamps against it) say what it is.
 
+**A nested type is spelled with `/` in a claims file**, the way Cecil's `FullName`
+gives it: `StatMaster/GodTools::GravityDisabled`, not the `StatMaster.GodTools.…`
+you would write in C#. The bare `GodTools::GravityDisabled` resolves too.
+
 ## 2. A throwaway compile
 
 If a member exists with the signature you guessed, a file mentioning it compiles.
@@ -162,6 +166,32 @@ session, rather than only what it decided:
 The second line diagnosed a bug two rounds of reasoning had failed to. Output goes
 to `Player.log` — on Linux `~/.config/unity3d/Spiderling Games/Besiege/Player.log`
 — and to the in-game console with `show_logs true`.
+
+## 6. Build checks, and how they quietly stop checking
+
+Most of what goes wrong in a Besiege mod is invisible at runtime — a block that is
+absent, a module that never attached, an assembly the loader refused — so it pays
+to answer those questions at build time instead. All three are cheap: parse the
+block XML and assert the elements Besiege requires, read the module class's
+`[XmlAttribute]`/`[DefaultValue]` markers and hold the XML to them, and walk the
+built assembly for blacklisted namespaces. Each is well under a hundred lines and
+each replaces a launch.
+
+Two ways that machinery rots, both of which happened here:
+
+- **A checker whose own compile is silenced stops being a checker.** These tools
+  are themselves C# built by the same ancient compiler, and a build script that
+  compiles them with `>/dev/null 2>&1` and carries on will, the day one of them
+  fails to compile, silently run the *previous* build's binary — or skip the check
+  and still print nothing. A stale checker that reports "OK" is worse than no
+  checker. Delete the old binary first, and fail the build if the checker will not
+  compile.
+- **Do not share a scratch directory between mods.** A build script copied from a
+  neighbouring repo keeps its `/tmp/besiege-<other-mod>-build` path, and two repos
+  then overwrite each other's compiled checkers. Name it after the mod.
+
+And when a check does fire, make it say what to *do*: "give the field a
+`[DefaultValue]` to make it optional" is worth more than "missing attribute".
 
 ## Things that bit, or nearly did
 

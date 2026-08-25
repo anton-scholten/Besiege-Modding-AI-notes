@@ -22,6 +22,61 @@ Two consequences worth knowing before changing that line:
   the game, which is invisible until it matters and then costs a round of poses
   turned the wrong way.
 
+## A block needs `<AddingPoints>`, and `hasAddingPoint="true"` is not a substitute
+
+A block with no `<AddingPoints>` list cannot be built on properly, and the failure
+looks like a placement bug rather than a missing element: whatever you attach lands
+*inside* the block and intersects it.
+
+`InternalModding.Blocks.BlockPrefabCreator.SetupAddingPoints` treats the two
+sources completely differently.
+
+`<BasePoint hasAddingPoint="true">` creates one point, hardcoded:
+
+```
+localPosition    = (0, 0, 0.5)      // the block's own centre
+localEulerAngles = (90, 0, 0)
+trigger collider  center (0, -0.58, 0), size (0.6, 0, 0.6)
+```
+
+A declared `<AddingPoint>` takes its `Position` and `Rotation` from the XML and
+then does something the implicit one never does:
+
+```
+transform.position -= transform.forward * 0.5f;
+```
+
+So the implicit point sits **half a block deeper** than any declared point would,
+facing -Y. If it is the only adding point a block has, everything attaches into the
+middle of it.
+
+The five points every stock and modded block uses, which put a block on the same
+1-unit grid as a base-game one:
+
+```xml
+<BasePoint hasAddingPoint="false">
+  <Stickiness enabled="true" radius="1" />
+  <Motion x="false" y="false" z="false" />
+</BasePoint>
+<AddingPoints>
+  <AddingPoint><Position x="0.0" y="0.0"  z="1.0"/><Rotation x="0.0"  y="0.0"  z="0.0"/><Stickiness enabled="false" radius="0"/></AddingPoint>
+  <AddingPoint><Position x="0.0" y="-0.5" z="0.5"/><Rotation x="90.0" y="0.0"  z="0.0"/><Stickiness enabled="false" radius="0"/></AddingPoint>
+  <AddingPoint><Position x="0.0" y="0.5"  z="0.5"/><Rotation x="-90.0" y="0.0" z="0.0"/><Stickiness enabled="false" radius="0"/></AddingPoint>
+  <AddingPoint><Position x="0.5" y="0.0"  z="0.5"/><Rotation x="0.0"  y="90.0" z="0.0"/><Stickiness enabled="false" radius="0"/></AddingPoint>
+  <AddingPoint><Position x="-0.5" y="0.0" z="0.5"/><Rotation x="0.0" y="-90.0" z="0.0"/><Stickiness enabled="false" radius="0"/></AddingPoint>
+</AddingPoints>
+```
+
+**Setting `hasAddingPoint="false"` does not stop the block attaching to a parent.**
+That is a separate mechanism — the `TriggerForJoint` child and the block's
+`ConfigurableJoint`, which `SetupAddingPoints` drives from `BasePoint.Sticky` and
+`BasePoint.BreakForce`. A block with `hasAddingPoint="false"` and `Stickiness
+enabled="true"` attaches normally and simply has no stray centre point.
+
+Match the side offsets to the block's real width when it is not a 1-unit cube: a
+thin glass pane uses `±0.05`. Keep the top at `z = 1.0` regardless, or it comes off
+the grid.
+
 ## The toolbar icon
 
 `<Icon>` gives a position, rotation and scale for a second camera that photographs
@@ -92,6 +147,46 @@ Anything that moves a block for show — an animation, a swell, a wobble — wri
 the former and must not touch the latter, or the machine's collision changes with
 the animation. And a simulation runs on a **clone** of the machine, so read the
 renderer list from the instance that is running rather than caching it at load.
+
+## The limits dial's little block is posed by `<LimitsDisplay>` alone
+
+A block with `AddLimits` gets a mapper row with two dials and a small render of the
+block between them. That render is posed by **nothing but** the `<LimitsDisplay>`
+transform in the block XML, which becomes `MLimits.iconInfo`:
+
+```csharp
+// Selectors.LimitsSelector.Init, paraphrased
+visual = Instantiate(Limits.LimitsDisplay.GetLimitsDisplay());   // the MeshRenderer's transform
+visual.transform.parent = visHolder;
+visual.transform.localPosition = Limits.iconInfo.localPosition;  // overwritten
+visual.transform.localRotation = Limits.iconInfo.localRotation;  // overwritten
+visual.transform.localScale    = Limits.iconInfo.localScale;     // overwritten
+```
+
+`GetLimitsDisplay()` is `MeshRenderer.transform` for base-game and modded blocks
+alike, and all three of its local components are then overwritten. **The `<Mesh>`
+element's own position, rotation and scale have no effect on this render.** So a
+mesh that looks right in the world can be posed end-on in the dial, and the fix is
+never in `<Mesh>`.
+
+If the block is a variant of a base-game one, take the numbers from
+`SteeringWheel.Awake`, which builds a `FauxTransform` per `BlockType`:
+
+| | steering hinge | steering block |
+| --- | --- | --- |
+| position | `(0, -0.342, 0)` | `(0, 0.1, 0)` |
+| rotation | `(90, 0, 0)` | `(0, 0, 0)` |
+| scale | `0.5` | `0.33` |
+
+Rotation is Euler degrees — `TransformValues.ToFauxTransform` is
+`new FauxTransform(Position, Quaternion.Euler(Rotation), Scale)`.
+
+The hinge's 90° about X is the whole lesson in one number. Its mesh is a body of
+revolution about **local Z**, so with no rotation the dial looks straight down the
+barrel and renders a featureless square — which reads as a missing texture, not as
+a wrong pose. Whether the plate ends up above or below is checkable without
+launching: measure the mesh's Z extent, work out which end the mounting plate is
+on, and rotating +90° about X sends local −Z to world +Y.
 
 ## How a machine save names a modded block
 
