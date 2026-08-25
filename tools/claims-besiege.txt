@@ -1,0 +1,102 @@
+# Every Besiege API named in these notes. Re-run after a game update:
+#   ./tools/peek.sh check tools/claims-besiege.txt
+# See notes/06-reading-the-game.md.
+
+# --- 01 loader and blacklist
+InternalModding.Assemblies.AssemblyScanner
+Modding.ModEntryPoint
+Modding.Configuration
+Modding.ModKeys
+Modding.ModResource
+Modding.ModResource::AllResourcesLoaded
+Modding.ModIO
+InternalModding.Misc.ModPaths
+
+# --- 09 overlay: the click-through finding
+ClickBehaviour
+ClickBehaviour::OnMouseOver
+ClickBehaviour::OnCursorOver
+ClickBehaviour::OnClicked
+InputManager::LeftMouseButton
+WarningPopupBase
+AddPiece::CheckHudOcclusion
+UIMask::InsideMask
+StatMaster::inMenu
+StatMaster::hudHidden
+StatMaster::isMainMenu
+StatMaster::isLoadingLevels
+StatMaster::inMenuChanged
+
+# --- 11 the load screen
+FileBrowserSlot
+FileBrowserSlot::VirtualObject
+FileBrowserSlot::VersionsClicked
+FileBrowserSlot::SetupVersionsButton
+FileBrowserSlot::OnVersionsButtonClick
+FileBrowserView
+FileBrowserView::Close
+FileBrowserView::IsOpen
+FileBrowserView::OnPageViewSlotVersions
+SimpleUIButton
+SimpleUIButton::ResetDelegates
+SimpleUIButton::Click
+HoverableClickBehaviour
+Tooltip
+Tooltip::tooltipParent
+Tooltip::timeToProc
+Tooltip::useFadeOut
+Tooltip::lerpPosDirection
+Tooltip::Reset
+Tooltip::OnMouseExit
+Tooltip::ResizeBackground
+IVirtualObject
+IVirtualObject::Date
+IVirtualObject::Name
+IVirtualObject::ObjectPath
+IVirtualObject::ThumbnailPath
+IVirtualObject::IsFolder
+
+# --- 12 machines and saves
+AutoSave.MachineAutosaveController
+StaticSettings::MachineAutosavePath
+ReferenceMaster::onMachineModified
+BlockMapper::onMapperOpen
+BlockMapper::onMapperClose
+BlockMapper::Current
+XmlLoader
+MachineInfo
+MachineInfo::Blocks
+BlockInfo
+BlockInfo::Guid
+BlockInfo::ID
+BlockInfo::Position
+BlockInfo::Rotation
+BlockInfo::Scale
+BlockInfo::Flipped
+BlockInfo::Skin
+BlockInfo::BlockData
+XDataHolder
+BlockSkinLoader
+BlockSkinLoader::SkinPack
+Machine
+Machine::Active
+Machine::LoadMachineInfo
+Machine::IsLoadingMachine
+Machine::BuildingBlocks
+Machine::SpawnBlock
+
+# --- 13 drawing over the machine
+PrefabMaster
+PrefabMaster::GetPrefab
+BlockPrefab
+BlockPrefab::ghost
+GhostTrigger
+GhostPinTrigger
+IntersectWarning::WarningFromWorldPos
+GenericDraggedBlock
+FuelLineBehaviour
+
+# --- 04 the colour slider Besiege uses
+Selectors.ColourSliderSelector
+Selectors.ColourSliderSelector::ColorToPixelPos
+Selectors.ColourSliderSelector::ClosestColorPos

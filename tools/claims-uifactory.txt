@@ -1,0 +1,32 @@
+# Every UI Factory API named in these notes. Needs its assemblies:
+#   ./tools/peek.sh check tools/claims-uifactory.txt -- UIFactory
+
+Besiege.UI.Make
+Besiege.UI.Make::Prefab
+Besiege.UI.Make::Sprite
+Besiege.UI.Make::OnReady
+Besiege.UI.Make::Font
+Besiege.UI.Make::ScreenCanvas
+Besiege.UI.Make::Instance
+Besiege.UI.Mod
+Besiege.UI.Consts
+Besiege.UI.Consts::C_BG_RED
+Besiege.UI.Bridge.Drag
+Besiege.UI.Bridge.Drag::Target
+Besiege.UI.Bridge.Drag::UseSnap
+Besiege.UI.Bridge.Resize
+Besiege.UI.Bridge.Tooltip
+Besiege.UI.Bridge.ScaleAnimation
+Besiege.UI.Bridge.ScaleAnimation::Target
+Besiege.UI.Bridge.BlurHandler
+Besiege.UI.Bridge.CustomMaterialHandler
+Besiege.UI.Bridge.LetterSpacing
+Besiege.UI.Bridge.Option
+Besiege.UI.Bridge.Option::Index
+Besiege.UI.Bridge.Option::Value
+Besiege.UI.Behaviours.Translator
+Besiege.UI.Bridge.Behaviours.HoverListener
+Besiege.UI.Bridge.Behaviours.StopsZoomWhenHovered
+Besiege.UI.Bridge.Behaviours.FollowsQuadWithinKeymapperBounds
+Besiege.UI.Bridge.Effects.FocusListener
+Besiege.UI.Bridge.Effects.StopsHotkeysWhenInputFieldFocused
