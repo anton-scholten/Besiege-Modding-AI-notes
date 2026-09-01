@@ -74,6 +74,20 @@ Ones worth knowing:
 - **`Input Field`** carries the behaviour that stops Besiege acting on whatever is
   being typed. A hand-built box has to solve that itself, and a field must not be
   written to while `isFocused` or the caret jumps out from under the typist.
+
+  **Its `textComponent` and `placeholder` come out of the prefab with no font**,
+  and a `Text` with no font draws nothing — so the field looks empty however much
+  you write into it, and reads as a box that swallows typing rather than one that
+  failed to paint. `Besiege.UI.Make.Font` is a public static field; assign it to
+  both. The game logs `Font is null, replacing with default` around it, which is
+  Besiege's own message and not a warning about your field.
+- **`Text Dropdown`** is a plain uGUI `Dropdown` (`NormalDropdown.prefab`), with
+  its template as a `ScrollView` child. Two consequences: its `captionText` and
+  `itemText` come out fontless like the Input Field's, so both want
+  `Besiege.UI.Make.Font`; and **`Dropdown` parents its open list to itself**, so
+  inside a `Window`'s scroll view the list is clipped by that viewport and a
+  dropdown near the bottom of a panel opens into nothing. Put one at the top of
+  the panel, or use `Options` instead.
 - **`Window`** is more than a frame: `Window` (Image, `StopsZoomWhenHovered`) with
   three children — `Blur`, `TopBar` (Image, a `Drag` already targeting the window,
   holding `Text` and `CloseButton`) and `ScrollView`, a full `ScrollRect` over
@@ -132,6 +146,133 @@ prefab uses, since the number cannot be read and erring deep costs nothing.
 Beware applying it to controls that tile: the child reaches past its parent, and
 two of them meeting will argue over the seam. Sliders are unaffected — they act on
 press and drag, not on release.
+
+## Two that stop a panel dead
+
+**`SaveableDataHolder.GetMapperType(key)` does not take the key you registered.**
+Its body is
+
+```csharp
+foreach (MapperType t in mapperTypes)
+    if (("bmt-" + t.Key).Equals(key)) return t;
+return null;
+```
+
+so it wants the `bmt-`-prefixed form and answers **null** for `"FontMenuKey"` —
+the string `AddMenu` was given. A panel looking its controls up by key gets null
+for every one of them and throws on the first dereference, having already spawned
+its window, which is then left on screen empty. Scan `MapperTypes` for
+`t.Key == key` instead, or pass `"bmt-" + key`.
+
+**Strip every `Translator` in a spawned prefab, not just the one on the label.**
+`Translator.Start` calls `Recaption`, which reaches UI Factory's own registered
+component setup action, and that throws a `NullReferenceException` on a label with
+no localisation key — which is every label a mod writes. It takes the whole panel
+build with it:
+
+```
+NullReferenceException
+  Besiege.UI.Mod+<>c.<OnLoad>b__6_4 (UnityEngine.Component c)
+  Besiege.UI.Behaviours.Translator.Recaption ()
+  Besiege.UI.Behaviours.Translator.Start ()
+```
+
+`Window`, `Options` and `Text Toggle` each bring their own, and it is not always
+on the object carrying the `Text`. So:
+`GetComponentsInChildren<Translator>(true)` over the whole spawned hierarchy, and
+`DestroyImmediate` — a deferred `Destroy` can lose the race with `Start`.
+
+## Dragging a number in an `Input Field`
+
+A field you can both type into and scrub sideways is the compact way to put three
+numbers on a row. The drag handler cannot go on the field: `InputField` implements
+`IDragHandler` itself for text selection, and uGUI dispatches a drag to **every**
+handler on the object it hits — so the value changes and a selection sweeps across
+it at the same time.
+
+Put a transparent `Image` child over the field instead, `raycastTarget` on,
+stretched to 0..1, carrying the drag behaviour. It intercepts the drag, and an
+`IPointerClickHandler` on the same sheet passes a still click on with
+`field.ActivateInputField()`.
+
+**Do not test `eventData.dragging` to tell a click from a drag.** It is true after
+the pointer has moved a *single pixel*, so an ordinary click by a hand that is not
+perfectly still is read as a drag: the field never takes focus, the caret comes and
+goes at random, and the value is nudged by whatever that pixel was worth. Measure
+the gesture instead, in both handlers:
+
+```csharp
+private static bool Steady(PointerEventData pointer)
+{
+    return (pointer.position - pointer.pressPosition).sqrMagnitude < 4f * 4f;
+}
+```
+
+Two more things the sheet has to do itself, because the field's own click never
+arrives:
+
+- **Double-click to select all.** `clickCount >= 2`, then set
+  `selectionAnchorPosition = 0` and `selectionFocusPosition = text.Length`. Not in
+  the click handler: `ActivateInputField` only *asks* for focus, and an unfocused
+  field has nothing to select. Set it in `LateUpdate` once `isFocused` — and set it
+  for **several frames**, because `InputField` settles its own caret in its
+  `LateUpdate` and which of the two runs first is not yours to decide.
+- **Do not re-activate a field that already has focus.** `ActivateInputField` on a
+  focused field resets its caret at the end of the frame, over anything you set.
+
+Scale the drag by the control's own range (`(Max - Min) * k` per pixel) rather than
+by a fixed step, so a 0..1 slider and a 0..1000 one feel the same.
+
+To grey the row out, leave the sheet in place with a `locked` flag — that stops the
+drag *and* the click that would focus the field — and set
+`InputField.interactable = false` with a dimmed `textComponent.color`.
+
+## One owner per `SetActive`, or the last writer wins
+
+A panel of any size ends up with several reasons to hide a row: it is scrolled out
+of the frame, the group it belongs to is switched off, the light type does not use
+it, the other half of the row is showing instead. Each of those is easy on its own
+and they fight the moment two of them touch the same `gameObject.SetActive`.
+
+The bug looks like a setting that ignores its own switch, and it is whichever code
+runs later in the frame. Two fixes, and both are worth having:
+
+- **Nest.** A row that something else hides gets a container: the outer object
+  belongs to the clipping, the inner one to the switch. One `SetActive` each.
+- **Share the decision.** Where nesting is not natural, have every reason write
+  into one array and one loop apply it, rather than each calling `SetActive` itself.
+
+## Two rows governed by one control
+
+Panels that look controls up by key end up with a *binding* object per row. Two
+rows driven by the same switch each bind it separately, so `rowA.Bond == rowB.Bond`
+is false even though they are the same setting. Compare `Bond.Control`, not the
+binding, when a change has to reach every row that shares it.
+
+## Rows that come and go, and closing up the gap
+
+Hiding a control is better than dimming it when it cannot be used at all, but the
+hole it leaves is worse than either. Lay everything out once, record each row's
+`anchoredPosition.y`, then on a change walk the rows once: mark the hidden ones,
+and shift each of the rest up by the total height of the hidden groups above it.
+
+Two things keep it cheap enough to run on a menu change:
+
+- **Compare a signature first.** A bitmask of which groups are hidden, checked
+  against the last one, turns most calls into a single comparison.
+- **Shrink the content and the window by the same total**, or the panel keeps a
+  gap at the bottom where the rows used to be.
+
+Nested groups need one guard: a group inside a group that has already gone must not
+subtract its own height again, since the outer one already counted those rows.
+
+And once you have both kinds of group -- one that dims its rows, one that removes
+them -- keep *is this dimmed* and *is this here at all* as two separate flags per
+group. One flag looks like it works, because for a single group the two answers
+agree. They come apart the moment a removing group sits inside a dimming one: the
+child inherits the parent's "off" and takes its rows away, when what the parent
+meant was "greyed". The child's presence should depend on its own gate and on
+whether an ancestor *removed* it -- never on whether an ancestor is dimmed.
 
 ## Tooltips
 
@@ -238,6 +379,133 @@ same number of rows and toggles — then a block with the same shape but differe
 control names will show the previous block's captions. Write every caption from
 `MapperType.DisplayName` on every open, the fixed rows included. The symptom
 otherwise is a piano with a PALM MUTE where its SUSTAIN should be.
+
+The nastier half of the same trap is that **two blocks of the same kind do not
+share their `MapperType`s**. Every instance builds its own in `SafeAwake`. A row
+that captured a `MSlider` when the window was built keeps pointing at whichever
+block was open then, so the second block of that kind you open shows the first
+one's values *and writes to it* — silently, with no error anywhere. It looks like
+a save bug and it is an identity bug.
+
+Hold a **key**, not a control, and look the key up again on every open:
+
+```csharp
+private class Bond { public string Key; public MapperType Control; }
+
+private bool Rebind()               // called from the mapper-open handler
+{
+    for (int i = 0; i < bonds.Count; i++)
+    {
+        bonds[i].Control = Look(bonds[i].Key);   // scan holder.MapperTypes
+        if (bonds[i].Control == null) return false;
+    }
+    return true;
+}
+```
+
+Ranges, choices and captions are the same for every instance, so the geometry can
+still be laid out once from whichever block built it. Only the reads and writes
+have to be rebound.
+
+## Do not churn `DisplayInMapper`
+
+Every change to a `MapperType.DisplayInMapper` sets `BlockMapper.IsDirty`, and the
+mapper answers a dirty flag by rebuilding **all** of its widgets. A panel that
+hides the block's controls when it opens and hands them back when it closes
+therefore costs three full rebuilds per visit — and a fourth at the start of every
+run, because starting one closes the mapper. On a block with sixty settings that
+is a visible stall on open and on Simulate.
+
+Take them off once and leave them off while your panel is the thing drawing them.
+`DisplayInMapper` is not serialised, so a session where your panel never runs
+starts with everything visible anyway. Two things do need re-hiding: a block's own
+`Toggled` and `ValueChanged` handlers show the controls they govern and know
+nothing about your panel, so re-apply after any switch or menu your panel drives.
+
+## The `Window` prefab's Viewport masks nothing until you size it
+
+`Window` is `Window > ScrollView > Viewport > Content`, and `Viewport` carries the
+`Mask`. It arrives anchored to a corner at **zero size**, so the mask has no rect
+and clips nothing at all: rows scrolled past the top are drawn over whatever is
+above the window, and the last row hangs below the frame. It looks like a shader
+problem and it is an anchor problem.
+
+```csharp
+view.anchorMin = Vector2.zero;
+view.anchorMax = Vector2.one;
+view.pivot     = new Vector2(0f, 1f);
+view.offsetMin = Vector2.zero;
+view.offsetMax = new Vector2(-18f, 0f);   // the scrollbar's gutter
+mask.showMaskGraphic = false;             // the window already has a background
+```
+
+`Scrollbar Vertical` comes the same way, and `ScrollRect.verticalScrollbarVisibility`
+does not fix it — set its rect too, and lay your rows out 18 short of the right
+edge, or the bar is drawn over the end of every one of them.
+
+**Sizing the Viewport was still not enough to make the Mask clip.** With the rect
+right, the mask enabled and `showMaskGraphic` off, rows scrolled past the top were
+still drawn over whatever was above the window. If your rows are a list of whole
+rows, stop fighting it and clip them yourself — hide any row not entirely inside
+the frame:
+
+```csharp
+float at = scroll.content.anchoredPosition.y;      // 0 at the top, grows downward
+float top = at + row.anchoredPosition.y;           // row.anchoredPosition.y is negative
+bool inside = top <= 0f && top - row.sizeDelta.y >= -viewportHeight;
+row.gameObject.SetActive(inside);
+```
+
+Only when the scroll position or the frame height changes, and only over the direct
+children of `content`. Rows then appear and disappear at the edges rather than
+sliding under them, which is what a list of whole rows should look like anyway, and
+it does not depend on a prefab's internals at all.
+
+`Window` already has `StopsZoomWhenHovered` on the root, so a panel built on it
+does not need a zoom guard of its own. Anything you parent to the canvas instead
+of to the window -- a drop-down list, a tooltip -- does.
+
+## Hover swell does not ask whether the control works
+
+`Besiege.UI.Bridge.ScaleAnimation` is what makes a control grow under the pointer,
+and it does not check `Selectable.interactable`. Grey a `Slider` out and its white
+handle still swells as though it could be dragged. Switch the `ScaleAnimation`s off
+with the rest of the control.
+
+Note where they live: on a `Text Toggle` or a button the animation is on the root,
+but a `Slider`'s is on `Handle Slide Area > Handle`, not on the `Slider` itself. So
+`GetComponent<ScaleAnimation>()` on a row silently does nothing for a slider, and
+`GetComponentsInChildren` is what you want. If you also want a row-level swell gone
+for good, **destroy** that one rather than disabling it, or turning the rest back on
+brings it back with them.
+
+## The wheel over your panel also zooms the camera
+
+A `ScrollRect` of your own consumes the wheel for its own scrolling, and Besiege
+zooms at the same time, because nothing told it not to. Besiege's own scrollbars
+hold a counter for exactly this:
+
+```csharp
+StatMaster.DisableCameraZoom(true);    // on pointer enter
+StatMaster.DisableCameraZoom(false);   // on pointer exit, on disable, on destroy
+```
+
+It is a **counter**, not a flag, so every hold has to be given back exactly once —
+including when the object is disabled or destroyed while still hovered, which is
+the usual way to leak one and disable zoom for the rest of the session. Put it on
+the window root: uGUI sends `OnPointerEnter`/`OnPointerExit` to the whole chain of
+parents of whatever is actually under the pointer, so one component covers every
+row.
+
+`InputManager.ZoomValue` is gated on `StatMaster.stopHotkeys` instead, which is the
+heavier hammer — it stops most keyboard input too. Use the zoom counter.
+
+## `Scrollbar` is one of Besiege's own type names
+
+`Assembly-CSharp` has a global `Scrollbar`, so `using UnityEngine.UI;` does not get
+you `UnityEngine.UI.Scrollbar` — you get Besiege's, and the errors read as though
+uGUI's fields have gone missing. Qualify it. `Image`, `Text`, `Button`, `Slider`
+and `ScrollRect` do not collide.
 
 ## The Bridge components, in full
 
@@ -373,6 +641,18 @@ settings:
   looks like a picture of a slider. The strip that replaced them has to take the
   job: `raycastTarget = true`.
 
+## Borrowing a prefab's own corners
+
+To draw a coloured stroke inside a control -- a colour preview round an input
+field, say -- take the control's background `Image`, copy its `sprite` and `type`
+onto a child stretched over it, and set **`fillCenter = false`**. A nine-slice
+draws only its border then, so the corner radius is the prefab's own and there is
+no sprite to make or ship.
+
+It draws *nothing* if the sprite has no border, so check first rather than guess:
+`unbundle.py <bundle> InputField --fields` shows `m_Type 1` (Sliced) and the sprite
+it points at. UI Factory's `Input Field` is sliced; not everything is.
+
 ## What is in UI Factory's sprite bundle cannot be listed
 
 `Make.Sprites` is keyed `"package::name"` and is **not public**, and `Make.Sprite`
@@ -401,3 +681,85 @@ For a box that drives a slider, or a slider that drives a box:
 A slider clipped to a sensible range with a box that accepts a wider one is a good
 pattern: the slider covers what is worth dragging through and the box covers the
 cases that are not worth a third of the slider's travel.
+
+## The house style: how a selector and a toggle are built
+
+Four mods by this author now draw the same two controls the same way. Copy the
+files rather than writing them again, and keep the copies in step — they are
+`Chooser.cs`, `Swell.cs` and `ZoomGuard.cs`, and they are self-contained apart
+from `UIF.Font`.
+
+### Selectors: `Chooser`, not `Options` and not `Text Dropdown`
+
+Neither prefab survives a docked panel. `Options` **only steps**, which is a click
+per entry through nine instruments or forty files. `Text Dropdown` parents its open
+list to itself, so inside a `Window`'s scroll view **the list is clipped to the
+window** and one near the bottom opens into nothing.
+
+`Chooser` is a `< name >` row built from plain uGUI: two arrow plates, a face in
+the middle, and a list that opens when the face is clicked.
+
+```csharp
+// with arrows -- the ordinary case
+Chooser pick = Chooser.Make(host, transform, x, y, w, h, choices, index);
+
+// without -- for a list where stepping makes no sense, or where three
+// controls share a row and there is no width for arrows
+Chooser files = Chooser.Make(host, transform, x, y, w, h, names, index, false);
+
+pick.Set(choices, index);     // refill; only rebuilds if the choices differ
+int chosen = pick.Index;      // polled -- it raises no event
+```
+
+The things that matter in it, all of which cost something to find:
+
+- **The list hangs off the canvas** (`root`, the second argument), not off the row.
+  A list parented into the scrolling content is clipped the moment it reaches past
+  the panel, which is most of the time.
+- **A blocker sits under the list**, full-canvas and almost transparent, so a click
+  anywhere else closes the list instead of falling through to the world.
+- **`LateUpdate` repositions an open list**, because a docked panel is placed
+  against the mapper every frame and the mapper is dragged.
+- **It opens upwards** when there is no room below.
+- **`ZoomGuard` on the list**, or the wheel scrolls the list and pulls the camera
+  in at the same time. `StatMaster.DisableCameraZoom` is a counter, not a flag.
+- **Items are white plates tinted by their own `ColorBlock`** — invisible until
+  hovered, which is what makes the highlight free.
+- The panel **polls `Index`**; there is no event to subscribe to, and polling one
+  integer beats binding to a signature that may change.
+
+### Toggles: the prefab's swell off, your own on the lettering
+
+`Text Toggle` is the game's real toggle and worth using — but its hover swell
+grows **the whole control**, and on a full-width row that carries the lettering
+sideways out of the window. So:
+
+```csharp
+GameObject go = UIF.Spawn(UIF.TogglePrefab, host);
+UIF.NoSwell(go);                       // destroy the prefab's ScaleAnimation
+Text caption = go.GetComponentInChildren<Text>(true);
+UIF.Untranslate(caption);              // or it reverts on a language change
+Swell swell = go.AddComponent<Swell>();
+swell.grows = caption.transform;       // the words grow, the row does not
+swell.grown = 1.15f;
+```
+
+`Swell` also stops growing when the control is not interactable, and it lerps on
+**unscaled** time — a build menu is open at any time scale, pause included.
+
+The same pairing is why `NoSwell` destroys rather than disables: a later
+`SetSwell(go, true)` over a whole row would otherwise turn the prefab's own back on
+with everything else.
+
+### One more thing the prefab gets wrong
+
+`Text Toggle`'s caption is a fixed 160 wide and is the **last child**, so on a
+toggle narrower than that it overhangs its neighbour and wins the clicks meant for
+it. Pin it to its own control and make it deaf:
+
+```csharp
+RectTransform rect = caption.rectTransform;
+rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
+caption.raycastTarget = false;
+```

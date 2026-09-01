@@ -77,6 +77,10 @@ cannot read a save. It can — through the game.
 This is the general shape of working inside the blacklist: the capability is not
 missing, it is behind an API of the game's, and finding that API is the job.
 
+`Modding.ModIO` is no help here: it refuses any path outside the mod's own
+folders — see [01-loader-and-blacklist.md](01-loader-and-blacklist.md) — and a
+save is never in one.
+
 ## `MachineInfo` and `BlockInfo`
 
 `MachineInfo.Blocks` is a `List<BlockInfo>`, and a `BlockInfo` carries `Guid`,
@@ -158,3 +162,86 @@ because every one of them has just been destroyed and rebuilt.
 `Machine.BuildingBlocks` is the live list. Saving walks it, which is the guarantee
 that anything you parent into the machine that is *not* a `BlockBehaviour` cannot
 end up in a save.
+
+## Adding blocks to the machine, as a selection the player can move
+
+`LoadMachineInfo` replaces the machine. To *add* to it — a mod that generates
+blocks, pastes something, or builds a structure — copy
+`MachineFileBrowserController.LoadAdditive`, which is what the load screen's "add
+to machine" button runs. It is private, but every member it touches is public:
+
+```csharp
+machine.isLoadingInfo = true;                       // public field
+StatMaster.mergeSurfaceTypesOnDeselect = false;     // put back afterwards
+BlockSelectionTool.Duplicating = true;              // static
+
+List<UndoAction> undo = new List<UndoAction>();
+Dictionary<Guid, BlockBehaviour> made;
+machine.AddBlocksFromInfo(blocks, out made, ref undo);   // NB: ref, not out
+
+BlockSelectionTool picker = AdvancedBlockEditor.Instance.selectionController;
+picker.DeselectAll(true, true);
+AdvancedBlockEditor.Instance.SetActiveTool(StatMaster.Tool.Translate);
+machine.UndoSystem.AddActions(undo);
+picker.Select(new List<BlockBehaviour>(made.Values), true, true);
+AddPiece.Instance.UpdateMiddleOfObject(true);
+if (machine.onBatchOperationComplete != null) machine.onBatchOperationComplete();
+
+BlockSelectionTool.Duplicating = false;
+machine.isLoadingInfo = false;
+```
+
+The blocks arrive selected, with the move tool up, and one undo takes them all
+away again — because it is the game's own path, not an imitation of it.
+
+Worth knowing:
+
+- The third argument of `AddBlocksFromInfo` is **`ref`**, so the list has to exist
+  before the call. The signature reads as `out` and does not compile as one.
+- `StatMaster.Tool` is an enum in the game; *referring* to one is fine, only
+  **declaring** an enum segfaults Besiege's compiler.
+- The `BlockInfo`s are built in memory — `Guid`, `ID` (a `BlockType`), `Position`,
+  `Rotation`, `Scale`, `BlockData` — so nothing has to be written to disk or
+  parsed. Positions are in the machine's space:
+  `machine.BuildingMachine.InverseTransformPoint(worldPoint)`.
+- `LoadAdditive` also drops the first block when the machine data says
+  `SavedWithoutStartingBlock`; blocks a mod invents have no starting block to drop.
+
+## Writing a `.bsg`: `XmlSaver.Save` is forbidden
+
+Saving is not symmetrical with loading. **`XmlSaver.Save` is one of the four
+methods the blacklist forbids by name** (with `LevelXMLSaver.Create` and
+`AssetBundle.LoadFromFile`/`Async`), and every entry point that reaches it —
+`MachineFileBrowserController.Save`, `.SaveSelection`,
+`MachineAutosaveController.VersionMachine` — is private. There is no public route
+to the game's writer, through the load screen or otherwise.
+
+And a mod cannot write the file itself either: `ModIO` refuses `SavedMachines`
+along with everywhere else outside its own folders. What is left is **Besiege's own
+save screen**, which is public:
+
+```csharp
+// The view is inactive while closed, so FindObjectOfType will not see it.
+FileBrowserView view = Resources.FindObjectsOfTypeAll<FileBrowserView>()[0];
+view.Open(FileBrowserType.LocalMachines, true, true);   // type, isSaveMenu, ...
+```
+
+Add the blocks to the machine first (above) and they are selected, so the screen's
+SELECTION ONLY button saves exactly them — and Besiege names the file, asks about
+overwriting, and renders the thumbnail. `Open` closes the block mapper on its way
+up, which takes any docked panel with it.
+
+If you must produce the XML anyway — to write it into your own data folder, or to
+compare against a generator — two things make that far less work than it sounds:
+
+- **`XData.Type` is already the element name.** `XSingle.Type` is `"Single"`,
+  `XStringArray.Type` is `"StringArray"` — the same words the file uses. Walking
+  `XDataHolder.ReadAll()` and writing `<Type key="...">RawValue</Type>` needs no
+  table of kinds and cannot fall behind one. A `string[]` `RawValue` becomes
+  `<String>` children.
+- `StaticSettings.SanatizeFileName` (sic) is public, and is what the game puts a
+  typed name through before saving it.
+
+What you do not get is a thumbnail — the game renders those itself when it saves —
+so the machine shows a blank tile in the load screen until the player saves it
+again.

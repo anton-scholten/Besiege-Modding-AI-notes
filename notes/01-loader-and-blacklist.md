@@ -12,6 +12,45 @@ change it after publishing — saved machines refer to blocks by it. A fresh clo
 has no ID until the game has seen it once, which is worth checking before blaming
 anything else for a block that will not appear.
 
+### Five elements are required, and `MultiplayerCompatible` is the one people miss
+
+A manifest without a required element is refused whole, and the mod does not
+appear in the list:
+
+```
+[Mods] ModInfo (at line 1, column 2 in Mod.xml) must contain MultiplayerCompatible element!
+[Mods] There was an error loading the mod manifest: .../Mod.xml
+[Mods] Not loading MyMod
+```
+
+This is the same rule as *Module attributes: required unless defaulted* below —
+`InternalModding.Common.Serialization.Validate` applying it to
+`InternalModding.Mods.ModInfo` — so the required set is every `[XmlElement]`
+property without a `[DefaultValue]`:
+
+```
+REQUIRED   Name  Author  Version  Description  MultiplayerCompatible
+optional   Debug  Icon  WorkshopThumbnail  LoadOrder  LoadInTitleScreen
+           Resources  ID
+```
+
+**`MultiplayerCompatible` is required and nothing about it suggests that.** It
+reads like a declaration a single-player mod could leave out, and it is the one
+element a hand-written manifest misses.
+
+**`Assemblies` is not required at all.** A blocks-only mod needs none — so a mod
+whose entire content *is* an assembly can omit it, load with no complaint, and do
+nothing whatsoever. If your mod is code, check for it yourself; the loader will
+not.
+
+And do not infer this list from what other mods ship. Every mod in the wild
+carries a `<Debug>`, which makes it look mandatory; it is not. Read the
+attributes instead — about twenty lines of Cecil over `ModInfo`'s properties,
+looking for an `XmlElementAttribute` with no `DefaultValueAttribute`. That is
+the technique of note 06 applied to attributes rather than signatures, and it is
+the difference between a build check that is correct and one that is merely
+superstitious.
+
 Console commands worth knowing: `show_logs true` routes log output into the in-game
 console, and `createmod` / `createblock` / `createentity` scaffold the XML.
 `addmodsdir` adds another directory to search for mods, which is how a working
@@ -74,6 +113,80 @@ against the manifest — `AssemblyLoader.GetModByAssembly` — and throws
 manifest.")` otherwise. A helper DLL that is not declared in `Mod.xml` cannot do
 its own file access; hand the work to a type in a declared assembly.
 
+### ...and only inside its own folders. Two traps in one method
+
+Both roots go through `ModPaths.GetFilePath(baseDir, path)`, and it does more than
+combine them. **Read it before assuming anything about what a mod can open** —
+this note said the opposite for a while, on the strength of its first half.
+
+```csharp
+Path.Combine(baseDir, path)          // a rooted `path` wins outright...
+// ...then, if the result does not end in a separator, its *directory* is taken:
+new FileInfo(result).Directory
+// ...and that directory is walked upwards looking for baseDir:
+throw new Exception("Path is not in mod directory! (" + path + ")");
+```
+
+**A mod may only reach its own folders.** `Path.Combine` does hand an absolute path
+straight through, which is what makes this look like it works — but the walk at the
+end refuses it, so a MIDI file the player picked, or Besiege's `SavedMachines`, is
+not something `ModIO` will open. There is no other file API: `System.IO.File` is
+blacklisted, `StreamWriter` is not among the carve-outs, and `XmlSaver.Save` is
+forbidden by name. What a mod can read is what is under its own folder or its
+`Mods/Data/<mod>_<guid>/` — so a mod that wants a file from the player asks them to
+put it there.
+
+**A folder argument must end in a slash.** Without one the resolved path is treated
+as a *file* and the folder acted on is its **parent**, which then usually fails the
+containment walk as well:
+
+```csharp
+Modding.ModIO.GetFiles("Songs/", true);   // lists Songs
+Modding.ModIO.GetFiles("Songs", true);    // lists the data folder above it
+Modding.ModIO.GetFiles("", false);        // tries to list Mods/ -- and throws
+```
+
+That last one is the natural way to ask "what is in my mod's folder", and it is the
+one that cannot work. Orchestra used it to find its block XMLs; the catalogue came
+back empty, and in game that read as *the instrument blocks could not be read*. The
+manifest already lists every block — read the list from there.
+
+**Whatever you pass through it can end up on disk.** `CreateDirectory` will make
+a folder of any name at all, so a name that came from a text box wants checking
+before it gets there -- one of these collected a run of fullwidth digits from
+somewhere and made a folder out of them every time a panel opened, six of them
+before anybody noticed. Check the name is plain, and only ever create the one
+folder your mod owns; a folder the player named and that is not there is a mistake
+to report, not a folder to make.
+
+`ModIO.GetFiles` and `GetDirectories` return **relative** names (they map their
+results back through `MakeRelativePath`), and `ModIO.OpenFolderInFileBrowser` is
+`Process.Start` on the folder — which not every Linux desktop answers.
+
+### The system's own file dialog ships with the game
+
+`SFB.StandaloneFileBrowser` — the well-known Standalone File Browser plugin — is
+in `Assembly-CSharp`, with `Besiege_Data/Plugins/libStandaloneFileBrowser.so`
+(GTK3) beside it on Linux. The `SFB` namespace is not blacklisted:
+
+```csharp
+string[] hit = SFB.StandaloneFileBrowser.OpenFilePanel("Choose a MIDI", "", "mid", false);
+```
+
+There are also `OpenFilePanelAsync`, `OpenFolderPanel`, `SaveFilePanel` and an
+`ExtensionFilter` overload of each.
+
+**Besiege itself never calls any of it** — a search for callers finds nothing
+outside `SFB` — so it is shipped and unproven: a modal GTK dialog over an
+exclusive-fullscreen Unity 5 window is exactly the sort of thing that hangs. Treat
+a failure as ordinary rather than exceptional, and have a fallback that needs no
+dialog (a folder under `Mods/Data/<mod>/` the player can drop files into, opened
+with `OpenFolderInFileBrowser`).
+
+And note what the dialog is *for*: it can show the player the whole disk, and
+`ModIO` can open none of it but the mod's own folders. Either check what came back
+and say so, or do not offer the dialog at all.
+
 ## `<LoadInTitleScreen />` decides when the mod's code first runs
 
 Without it, the mod is loaded when a level is entered. With it, the mod is loaded
@@ -133,6 +246,37 @@ The scanner walks field types, locals and IL operands. It does **not** enumerate
 custom attributes, which is why `[XmlRoot]`, `[XmlAttribute]` and friends are the
 supported way to name what a module deserialises even though `System.Xml` is
 blacklisted as code.
+
+### P/Invoke is refused separately, and that closes the native-code door
+
+`AssemblyScanner` carries a **dedicated P/Invoke check** as well as the namespace
+test, with its own message:
+
+```
+"You are not allowed to use PInvoke!"
+```
+
+So a `[DllImport]` is refused on its own terms, not merely as a side effect of
+`System.Runtime.InteropServices` being on the prefix list. Read it out of the
+scanner's string literals:
+
+```sh
+./tools/peek.sh dump InternalModding.Assemblies.AssemblyScanner | grep ldstr
+```
+
+Taken together with `System.Diagnostics` being blacklisted — so no
+`Process.Start` either — this means **a mod cannot reach native code at all**,
+by any route. There is no partial way in and no flag that relaxes it.
+
+That is worth knowing early, because a great many mod ideas have "wrap the
+library that already does this" as their obvious implementation. A text-to-speech
+mod cannot load DECtalk, eSpeak, Festival or SAPI; anything of that shape has to
+be reimplemented in managed code or reached over the network — and
+`UnityEngine.Networking.UnityWebRequest` is the one network API the blacklist
+leaves alone, at the cost of every player needing to run a server.
+
+A build-time check wants `MethodDefinition.IsPInvokeImpl` alongside the namespace
+walk, or it will pass an assembly the loader refuses.
 
 Worth building a check into the build script: scan the produced assembly against
 that list before the game refuses it, and the failure arrives with a line number

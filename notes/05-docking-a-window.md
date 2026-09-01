@@ -82,6 +82,70 @@ mapper (with their public `Background`, `Top`, `Bottom`, `BackgroundPos`,
 `BlockMapper.Container` is typed `IWidgetContainer`, which exposes only
 `TopValue()` and `ZValue()`.
 
+## A docked panel wants no title bar
+
+A panel docked to the mapper is the mapper's lower half, not a window of its own,
+so the `Window` prefab's `TopBar` goes — and with it the drag handle (dragging the
+lower half away from the upper half makes no sense) and the close cross, which
+would shut only half of what looks like one window.
+
+Hiding the bar is one `SetActive(false)`. What is easy to miss is the second half:
+**the `ScrollView` is anchored below the bar**, so hiding the bar alone leaves a
+bar's worth of empty frame at the top of the panel. Stretch it over the whole
+window afterwards:
+
+```csharp
+rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
+```
+
+Leave the bar in place and the panel also carries the prefab's authored title —
+"SAMPLE WINDOW" — which looks exactly like a label that failed to load.
+
+## Closing with the mapper needs polling, not the close event
+
+`BlockMapper.onMapperClose` does not fire for every way a mapper goes away —
+clicking off the block, or the block being deselected, leaves a docked panel
+hanging over the world with nothing behind it. Reconcile in `LateUpdate` instead,
+the way [08-block-lifecycle.md](08-block-lifecycle.md) says to treat all of these
+callbacks:
+
+```csharp
+BlockMapper mapper = BlockMapper.CurrentInstance;
+bool up = mapper != null && BlockMapper.IsOpen && mapper.Block != null
+          && ServesThisBlock(mapper);
+```
+
+Note **`BlockMapper.IsOpen` is static** while `CurrentInstance`, `Block` and
+`Current` are instance members — `mapper.IsOpen` does not compile, and reaching
+for it is the natural thing to write.
+
+Keep the events as well: they are the cheap path for the common case. The poll is
+what makes the panel honest.
+
+## Recolouring a UI Factory Slider's track
+
+The `Slider` prefab's children are not named what a guess would guess, so
+`transform.Find("Background")` misses and a hue band silently never appears. Find
+the track by elimination instead — the `Slider` component already knows the other
+two:
+
+```csharp
+foreach (Image image in bar.GetComponentsInChildren<Image>(true))
+{
+    if (bar.fillRect != null && image.transform.IsChildOf(bar.fillRect)) continue;
+    if (bar.handleRect != null && image.transform.IsChildOf(bar.handleRect)) continue;
+    // this one is the track
+}
+```
+
+## Bringing an `Options` selector's arrows in
+
+The arrows are anchored to the ends of the control, so a full-width selector puts
+them at the window's edges with the name marooned in the middle. There is no
+layout group to fight: make the **control** narrower than its row and centre it,
+and the arrows come in with it. 250 units against a ~434-wide panel reads well.
+
 ## Three things that are not obvious once the geometry is right
 
 1. **Dock in `LateUpdate`.** The mapper is dragged by its own behaviour, so a panel
@@ -93,6 +157,48 @@ mapper (with their public `Background`, `Top`, `Bottom`, `BackgroundPos`,
    most: on a width change the code set its rebuild flag and returned — and that
    same flag gated the placement call, so the panel never docked again and never
    followed a drag. Rebuild *and* place in the same frame.
+
+## Moving the mapper's own rows: `Top` destroys `Z`
+
+A mod that re-lays-out the mapper's rows — compacting them into two columns, say —
+places them with `ContainerDetails.Top`. That setter is
+
+```csharp
+transform.position = new Vector3(BackgroundPos.x, value - TopOffset);
+```
+
+the **two**-argument `Vector3` constructor, so it silently sets the row's **z to
+0**. The mapper is mesh UI in world space, so z is the whole of a row's depth.
+
+Besiege never suffers from this because it always pairs the two.
+`WidgetController`'s own layout loop is:
+
+```csharp
+c.Top = lastBottom;                     // zeroes c's z
+lastBottom = c.Bottom;
+c.Z = widgetContainer.ZValue();         // ...and puts it straight back
+```
+
+and `BlockMapper.ZValue()` is `transform.position.z - 0.1f` — the mapper floats
+its rows a tenth of a unit in front of its own window.
+
+So **save `Z`, write `Top`, restore `Z`**:
+
+```csharp
+float z = row.Z;
+row.Top = top;
+row.Z = z;
+```
+
+Read it back from the row rather than calling `mapper.ZValue()`: a row owned by a
+nested controller takes its depth from that controller's own container, not from
+the mapper.
+
+The symptom of getting this wrong is depth sorting that looks arbitrary — in the
+mod this came from, an open menu selector's autocomplete option list was drawn
+*behind* the toggle rows underneath it. Nothing about that suggests a row
+placement bug, which is why it is worth knowing that `Top` has a side effect at
+all. `Bottom` has the same shape and the same problem.
 
 ## Make it say what it found
 

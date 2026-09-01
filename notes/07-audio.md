@@ -30,6 +30,27 @@ of being heard. The gate opens into audio that was already generated with the ga
 shut, and the note arrives late — plainly late, not subtly. **Do not go back to
 it.**
 
+### There is a fourth row when the audio is known in advance
+
+The table above is about a block that synthesises as it plays, which cannot know
+its next sample until the frame arrives. When the whole sound is decided the
+moment it starts — a spoken line, a fixed phrase, anything triggered rather than
+played — **render all of it up front** and the latency question disappears:
+
+- synthesise into a `float[]` on a worker thread. Nothing in the generator needs
+  Unity, so it can be pure managed code and tested offline; a few tens of
+  milliseconds of work is a visible hitch on the game thread and nothing at all
+  on another;
+- hand the finished array to the audio thread with a single `volatile` reference
+  assignment. Reference writes are atomic, so a one-slot handoff — the game
+  thread writes only when the slot is null, the callback takes it and clears it —
+  needs no lock on the callback;
+- `OnAudioFilterRead` then only copies and scales, and still does its own pan and
+  distance gain, because the 2D-source requirement below is unchanged.
+
+None of the streaming route's latency, none of the live route's per-sample cost,
+and the generator stops being audio-thread code at all.
+
 So: leave the source **2D** (`spatialBlend = 0`, which also stops Unity distance-
 culling it) and do the placement yourself. A distance gain and a stereo pan worked
 out on the game thread, applied in the filter:
@@ -82,6 +103,66 @@ and none of it escapes; Unity has no such stage. Put a one-pole high-pass at the
 very end rather than "fixing" the oscillator, and run it whether the gate is open
 or not, since it is the offset it removes that would otherwise step the speaker as
 the gate moves.
+
+## The master volume slider does not reach a block's AudioSource
+
+Besiege has two kinds of volume control and they arrive by different routes:
+
+* The **per-category** sliders — BLOCKS, SFX, MUSIC, UI, AMBIENT, PHYSICS — are
+  exposed parameters on an `AudioMixer`, written every frame by
+  `MusicController.LateUpdate` as `UpdateVolume("BlockVolume", …)`. A block's
+  `AudioSource` is routed through a mixer group, so these do reach it.
+* The **master** slider sets `AudioListener.volume` — `OptionsMaster.SetMasterVolume`
+  on scene load, and the slider's own callback while it is dragged.
+
+**Unity does not apply `AudioListener.volume` to audio coming out of an
+`AudioMixer`.** So the one slider a player reaches for first does nothing to a
+modded block that makes its own sound, while the category sliders work — which
+reads as "your mod ignores my volume setting" and is hard to guess at from inside.
+
+Apply it yourself, and only where the game is not already doing it:
+
+```csharp
+private float MasterVolume()            // on the game thread, not the audio one
+{
+    if (source == null || source.outputAudioMixerGroup == null)
+        return 1f;                      // straight to the listener: it scales this already
+    BesiegeConfig config = OptionsMaster.BesiegeConfig;      // public static
+    return config == null ? 1f : Mathf.Clamp01(config.MasterVolume / 100f);
+}
+```
+
+`MasterVolume` is a percentage, which is why `SetMasterVolume` divides by 100. The
+mixer-group test is the part that matters: without it, a source that *is* scaled by
+the listener gets the slider applied twice and half volume becomes a quarter.
+
+## A limiter has to live where the sum is
+
+A block cannot see the mix it is part of. Sixty blocks each handing over a signal
+that peaks near one add up to a signal that peaks near sixty, and every one of them
+believes it is behaving. Sharing an estimate between them helps — each reports its
+peak, all apply one gain — but an estimate has to assume something about phase, and
+whatever it assumes will be wrong for some music. The power sum, `sqrt(sum of
+squares)`, is right for unrelated notes and optimistic by 15–20% for a chord played
+on one sample, which is exactly what a generated song does.
+
+The mix itself is visible in one place: `OnAudioFilterRead` on a `MonoBehaviour`
+attached to the object carrying the `AudioListener` receives the finished signal.
+A limiter there reads the peak of the samples it is about to pass on, so it can
+guarantee its output — no estimate, no overshoot.
+
+Two things to get right:
+
+* Work out the headroom from the buffer's own peak **regardless of the current
+  gain**. Computing it only when the current gain would clip lets the release climb
+  past what the buffer allows, and a rising signal then walks out over the ceiling
+  one buffer at a time.
+* Leave the buffer alone when there is nothing to do, rather than multiplying it by
+  one. It is the whole game's audio going through, not just yours.
+
+The cost of putting it there is that it is the whole game's audio: above the
+ceiling, everything ducks together. Keep a coarse stage on your own sources so the
+master stage rarely has to act.
 
 ## Sample rate
 

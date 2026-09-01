@@ -55,7 +55,10 @@ for a in "$@"; do
     if [[ $seen -eq 1 ]]; then EXTRA+=("$a"); else ARGS+=("$a"); fi
 done
 
-ASMS=("$MANAGED/Assembly-CSharp.dll" "$MANAGED/Assembly-CSharp-firstpass.dll")
+# DynamicText.dll is in the default set because the mapper's text lives there,
+# and leaving it out made the shipped claims file report misses that were not.
+ASMS=("$MANAGED/Assembly-CSharp.dll" "$MANAGED/Assembly-CSharp-firstpass.dll"
+      "$MANAGED/DynamicText.dll")
 for e in "${EXTRA[@]:-}"; do
     [[ -z "$e" ]] && continue
     if [[ "$e" == "UIFactory" ]]; then

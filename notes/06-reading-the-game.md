@@ -201,9 +201,14 @@ And when a check does fire, make it say what to *do*: "give the field a
   Windows regularly fail on it (`Fire.ogg` declared, `fire.ogg` on disk). If a
   resource "cannot be opened", check the case before anything else.
 - `Modding.Configuration` persists settings through `XDataHolder`, whose write
-  method (`AddValue`) has an unconfirmed signature; `ModConsole.RegisterCommand`
-  exists but its delegate type is not in the documented surface. Both are
-  reachable, neither is documented — check the IL before depending on them.
+  method (`AddValue`) has an unconfirmed signature. Reachable, undocumented —
+  check the IL before depending on it.
+- `ModConsole.RegisterCommand(string, CommandHandler, string)` is confirmed:
+  `CommandHandler` is a `void(string[])` delegate, and a method group converts to
+  it implicitly, so `RegisterCommand("mycmd", OnCommand, "help")` is all it takes.
+  Empty help text and a colon in the name both throw, and it resolves the calling
+  assembly against the manifest the same way `ModIO` does — so a helper DLL that
+  the manifest does not list cannot register commands.
 - A simulation runs on a **clone** of the machine. `OnSimulateStart` and
   `OnSimulateStop` land on the copy, never on the block an editor panel is editing.
   Anything that must be true for both has to be re-checked per frame rather than
