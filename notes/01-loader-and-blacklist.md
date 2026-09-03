@@ -2,20 +2,18 @@
 
 ## Mod layout
 
-A mod is a folder containing `Mod.xml`, which declares metadata and each
-component: `Assemblies`, `Blocks`, `Entities`, `Triggers`, `Events`, `Keys`,
-`Resources`. Hand-installed mods live in `Besiege_Data/Mods/`; Workshop
-subscriptions in `steamapps/workshop/content/346010/`.
+Mod = folder with `Mod.xml`. Manifest declares metadata + each component:
+`Assemblies`, `Blocks`, `Entities`, `Triggers`, `Events`, `Keys`, `Resources`.
+Hand-installed mods live `Besiege_Data/Mods/`; Workshop subs
+`steamapps/workshop/content/346010/`.
 
-`<ID>` is a GUID **the game writes on first load**. Do not hand-edit it, and never
-change it after publishing — saved machines refer to blocks by it. A fresh clone
-has no ID until the game has seen it once, which is worth checking before blaming
-anything else for a block that will not appear.
+`<ID>` = GUID **game writes on first load**. Never hand-edit, never change after
+publish — saved machines refer to blocks by it. Fresh clone has no ID until game
+saw it once. Check that before blaming anything else for block not appearing.
 
-### Five elements are required, and `MultiplayerCompatible` is the one people miss
+### Five elements required, `MultiplayerCompatible` is the missed one
 
-A manifest without a required element is refused whole, and the mod does not
-appear in the list:
+Manifest missing required element = refused whole, mod absent from list:
 
 ```
 [Mods] ModInfo (at line 1, column 2 in Mod.xml) must contain MultiplayerCompatible element!
@@ -23,10 +21,10 @@ appear in the list:
 [Mods] Not loading MyMod
 ```
 
-This is the same rule as *Module attributes: required unless defaulted* below —
-`InternalModding.Common.Serialization.Validate` applying it to
-`InternalModding.Mods.ModInfo` — so the required set is every `[XmlElement]`
-property without a `[DefaultValue]`:
+Same rule as *Module attributes: required unless defaulted* below —
+`InternalModding.Common.Serialization.Validate` applied to
+`InternalModding.Mods.ModInfo`. Required set = every `[XmlElement]` property with
+no `[DefaultValue]`:
 
 ```
 REQUIRED   Name  Author  Version  Description  MultiplayerCompatible
@@ -34,90 +32,79 @@ optional   Debug  Icon  WorkshopThumbnail  LoadOrder  LoadInTitleScreen
            Resources  ID
 ```
 
-**`MultiplayerCompatible` is required and nothing about it suggests that.** It
-reads like a declaration a single-player mod could leave out, and it is the one
-element a hand-written manifest misses.
+**`MultiplayerCompatible` required, nothing suggests it.** Reads like something
+single-player mod could omit. Hand-written manifests miss it.
 
-**`Assemblies` is not required at all.** A blocks-only mod needs none — so a mod
-whose entire content *is* an assembly can omit it, load with no complaint, and do
-nothing whatsoever. If your mod is code, check for it yourself; the loader will
-not.
+**`Assemblies` not required at all.** Blocks-only mod needs none — so mod whose
+entire content *is* assembly can omit it, load with no complaint, do nothing. If
+mod is code, check yourself; loader won't.
 
-And do not infer this list from what other mods ship. Every mod in the wild
-carries a `<Debug>`, which makes it look mandatory; it is not. Read the
-attributes instead — about twenty lines of Cecil over `ModInfo`'s properties,
-looking for an `XmlElementAttribute` with no `DefaultValueAttribute`. That is
-the technique of note 06 applied to attributes rather than signatures, and it is
-the difference between a build check that is correct and one that is merely
-superstitious.
+Don't infer list from other mods. Every mod in wild carries `<Debug>`, looks
+mandatory, isn't. Read attributes instead — ~20 lines Cecil over `ModInfo`
+properties, find `XmlElementAttribute` with no `DefaultValueAttribute`. Note 06
+technique applied to attributes not signatures. Difference between correct build
+check and superstitious one.
 
-Console commands worth knowing: `show_logs true` routes log output into the in-game
-console, and `createmod` / `createblock` / `createentity` scaffold the XML.
-`addmodsdir` adds another directory to search for mods, which is how a working
-copy outside
-`Besiege_Data/Mods/` gets loaded without copying it in.
+Console commands: `show_logs true` routes log into in-game console.
+`createmod` / `createblock` / `createentity` scaffold XML. `addmodsdir` adds
+another mod search dir — how working copy outside `Besiege_Data/Mods/` loads
+without copying in.
 
 ## Installing during development: symlink the mod folder
 
-Besiege loads mods from `Besiege_Data/Mods/`, one folder per mod, and reads them
-**once at startup** — so every change needs a game restart, but not a reinstall if
-the entry is a symlink:
+Besiege loads mods from `Besiege_Data/Mods/`, one folder per mod, **once at
+startup** — every change needs restart, but no reinstall if entry is symlink:
 
 ```sh
 ln -s /path/to/repo/MyMod "$BESIEGE/Besiege_Data/Mods/MyMod"
 ```
 
-The link target is whatever folder holds `Mod.xml`. Both layouts are in use and
-both work: the repository root itself, or a subfolder beside the sources and tools.
-A subfolder is tidier, because then only the mod ships and the `.cs`, `tools/` and
-`docs/` beside it are obviously not part of it. Besiege reads only what `Mod.xml`
-names, so sources left inside the mod folder are ignored either way.
+Link target = whatever folder holds `Mod.xml`. Both layouts work: repo root, or
+subfolder beside sources and tools. Subfolder tidier — only mod ships, `.cs`,
+`tools/`, `docs/` beside it obviously not part of it. Besiege reads only what
+`Mod.xml` names, so sources inside mod folder ignored either way.
 
-Three things worth building into an install script:
+Build into install script:
 
-- **`<ID>` is generated into `Mod.xml` on first load.** With a symlink that write
-  lands in your working copy, which is what you want — the ID must stay stable for
-  the life of the mod, so commit it. With a copy, the game writes into the copy and
-  your repository never gets it.
-- **Validate the manifest before installing.** A malformed `Mod.xml` produces no
-  error in game: the mod simply never appears in the list, which is
-  indistinguishable from not having installed it. Parse it, and check that every
-  path named by `<Assembly>`, `<Block>`, `<Texture>` and `<Mesh>` exists. (An easy
-  way to get there is `--` inside an XML comment, which XML does not allow.)
-- **Build before you copy.** If the mod ships a prebuilt `<Assembly>` rather than a
-  `<ScriptAssembly>`, a checkout has to carry a built DLL or it does not load —
-  so commit the DLL, and have `--copy` snapshot the folder only after a build.
+- **`<ID>` generated into `Mod.xml` on first load.** With symlink that write
+  lands in working copy — what you want, ID must stay stable for mod's life, so
+  commit it. With copy, game writes into copy and repo never gets it.
+- **Validate manifest before installing.** Malformed `Mod.xml` = no error in
+  game: mod never appears, indistinguishable from not installed. Parse it, check
+  every path named by `<Assembly>`, `<Block>`, `<Texture>`, `<Mesh>` exists.
+  (Easy way to get there: `--` inside XML comment, which XML forbids.)
+- **Build before copy.** Mod shipping prebuilt `<Assembly>` rather than
+  `<ScriptAssembly>` needs a built DLL in checkout or it won't load — commit the
+  DLL, and have `--copy` snapshot the folder only after a build.
 
 ## Where a mod may write
 
-`Modding.ModIO` is the sanctioned file API — and the only one available, since
-`System.IO.File` and `Directory` are blacklisted (below). Every method takes a
-trailing `bool data`:
+`Modding.ModIO` = sanctioned file API, and only one available: `System.IO.File`
+and `Directory` blacklisted (below). Every method takes trailing `bool data`:
 
 ```csharp
 Modding.ModIO.WriteAllText("config/settings.txt", text, true);   // data folder
 Modding.ModIO.ReadAllText("Tips/builder.txt", false);            // the mod folder
 ```
 
-- `data: false` resolves inside the mod's own folder — read-only in spirit, and
-  literally so for a Workshop subscription, which Steam will overwrite.
-- `data: true` resolves to `Besiege_Data/Mods/Data/<ModName><_ID>/`, where
-  `ModName` is the manifest name with spaces stripped and `ID` is the manifest
-  GUID: `Mods/Data/Clippy_e781508b-39fe-4a34-a98a-c2a2ab265775/`. This is the
-  place for settings and anything else the mod writes. It survives updates, and
-  it is per-mod, so nothing needs namespacing inside it.
+- `data: false` → mod's own folder. Read-only in spirit, literally so for
+  Workshop sub, which Steam overwrites.
+- `data: true` → `Besiege_Data/Mods/Data/<ModName><_ID>/`, `ModName` = manifest
+  name with spaces stripped, `ID` = manifest GUID:
+  `Mods/Data/Clippy_e781508b-39fe-4a34-a98a-c2a2ab265775/`. Place for settings +
+  anything mod writes. Survives updates, per-mod, so no namespacing inside it.
 
-`ModIO` finds the mod by walking back to the **calling assembly** and matching it
-against the manifest — `AssemblyLoader.GetModByAssembly` — and throws
+`ModIO` finds mod by walking back to **calling assembly** and matching against
+manifest — `AssemblyLoader.GetModByAssembly` — else throws
 `InvalidOperationException("ModIO called from an assembly not listed in the mod
-manifest.")` otherwise. A helper DLL that is not declared in `Mod.xml` cannot do
-its own file access; hand the work to a type in a declared assembly.
+manifest.")`. Helper DLL not declared in `Mod.xml` cannot do own file access;
+hand work to a type in a declared assembly.
 
 ### ...and only inside its own folders. Two traps in one method
 
-Both roots go through `ModPaths.GetFilePath(baseDir, path)`, and it does more than
-combine them. **Read it before assuming anything about what a mod can open** —
-this note said the opposite for a while, on the strength of its first half.
+Both roots go through `ModPaths.GetFilePath(baseDir, path)`, which does more than
+combine. **Read it before assuming what a mod can open** — this note said the
+opposite for a while, on strength of its first half.
 
 ```csharp
 Path.Combine(baseDir, path)          // a rooted `path` wins outright...
@@ -127,18 +114,17 @@ new FileInfo(result).Directory
 throw new Exception("Path is not in mod directory! (" + path + ")");
 ```
 
-**A mod may only reach its own folders.** `Path.Combine` does hand an absolute path
-straight through, which is what makes this look like it works — but the walk at the
-end refuses it, so a MIDI file the player picked, or Besiege's `SavedMachines`, is
-not something `ModIO` will open. There is no other file API: `System.IO.File` is
-blacklisted, `StreamWriter` is not among the carve-outs, and `XmlSaver.Save` is
-forbidden by name. What a mod can read is what is under its own folder or its
-`Mods/Data/<mod>_<guid>/` — so a mod that wants a file from the player asks them to
-put it there.
+**Mod may only reach own folders.** `Path.Combine` does hand absolute path
+straight through — makes it look like it works — but final walk refuses it. So a
+player-picked MIDI file, or Besiege's `SavedMachines`, is not something `ModIO`
+opens. No other file API: `System.IO.File` blacklisted, `StreamWriter` not among
+carve-outs, `XmlSaver.Save` forbidden by name. Mod can read what's under its own
+folder or its `Mods/Data/<mod>_<guid>/` — so mod wanting a player file asks them
+to put it there.
 
-**A folder argument must end in a slash.** Without one the resolved path is treated
-as a *file* and the folder acted on is its **parent**, which then usually fails the
-containment walk as well:
+**Folder argument must end in slash.** Without one, resolved path treated as
+*file* and folder acted on is its **parent**, which then usually fails
+containment walk too:
 
 ```csharp
 Modding.ModIO.GetFiles("Songs/", true);   // lists Songs
@@ -146,64 +132,61 @@ Modding.ModIO.GetFiles("Songs", true);    // lists the data folder above it
 Modding.ModIO.GetFiles("", false);        // tries to list Mods/ -- and throws
 ```
 
-That last one is the natural way to ask "what is in my mod's folder", and it is the
-one that cannot work. Orchestra used it to find its block XMLs; the catalogue came
-back empty, and in game that read as *the instrument blocks could not be read*. The
-manifest already lists every block — read the list from there.
+Last one = natural way to ask "what is in my mod's folder", and the one that
+cannot work. Orchestra used it to find block XMLs; catalogue came back empty, and
+in game read as *instrument blocks could not be read*. Manifest already lists
+every block — read list from there.
 
-**Whatever you pass through it can end up on disk.** `CreateDirectory` will make
-a folder of any name at all, so a name that came from a text box wants checking
-before it gets there -- one of these collected a run of fullwidth digits from
-somewhere and made a folder out of them every time a panel opened, six of them
-before anybody noticed. Check the name is plain, and only ever create the one
-folder your mod owns; a folder the player named and that is not there is a mistake
-to report, not a folder to make.
+**Whatever passes through can land on disk.** `CreateDirectory` makes a folder of
+any name at all, so a name from a text box wants checking first — one of these
+collected a run of fullwidth digits from somewhere and made a folder of them
+every time a panel opened, six before anybody noticed. Check name is plain, and
+only ever create the one folder your mod owns; a player-named folder that isn't
+there is a mistake to report, not a folder to make.
 
-`ModIO.GetFiles` and `GetDirectories` return **relative** names (they map their
-results back through `MakeRelativePath`), and `ModIO.OpenFolderInFileBrowser` is
-`Process.Start` on the folder — which not every Linux desktop answers.
+`ModIO.GetFiles` and `GetDirectories` return **relative** names (mapped back
+through `MakeRelativePath`). `ModIO.OpenFolderInFileBrowser` = `Process.Start` on
+the folder — not every Linux desktop answers.
 
 ### The system's own file dialog ships with the game
 
 `SFB.StandaloneFileBrowser` — the well-known Standalone File Browser plugin — is
 in `Assembly-CSharp`, with `Besiege_Data/Plugins/libStandaloneFileBrowser.so`
-(GTK3) beside it on Linux. The `SFB` namespace is not blacklisted:
+(GTK3) beside it on Linux. `SFB` namespace not blacklisted:
 
 ```csharp
 string[] hit = SFB.StandaloneFileBrowser.OpenFilePanel("Choose a MIDI", "", "mid", false);
 ```
 
-There are also `OpenFilePanelAsync`, `OpenFolderPanel`, `SaveFilePanel` and an
+Also `OpenFilePanelAsync`, `OpenFolderPanel`, `SaveFilePanel`, and an
 `ExtensionFilter` overload of each.
 
-**Besiege itself never calls any of it** — a search for callers finds nothing
-outside `SFB` — so it is shipped and unproven: a modal GTK dialog over an
-exclusive-fullscreen Unity 5 window is exactly the sort of thing that hangs. Treat
-a failure as ordinary rather than exceptional, and have a fallback that needs no
-dialog (a folder under `Mods/Data/<mod>/` the player can drop files into, opened
-with `OpenFolderInFileBrowser`).
+**Besiege itself never calls any of it** — caller search finds nothing outside
+`SFB` — so shipped and unproven: modal GTK dialog over exclusive-fullscreen
+Unity 5 window is exactly the sort of thing that hangs. Treat failure as
+ordinary, and have a fallback needing no dialog (folder under
+`Mods/Data/<mod>/` player drops files into, opened with
+`OpenFolderInFileBrowser`).
 
-And note what the dialog is *for*: it can show the player the whole disk, and
-`ModIO` can open none of it but the mod's own folders. Either check what came back
-and say so, or do not offer the dialog at all.
+Note what dialog is *for*: it shows player whole disk, and `ModIO` opens none of
+it but mod's own folders. Either check what came back and say so, or don't offer
+the dialog.
 
 ## `<LoadInTitleScreen />` decides when the mod's code first runs
 
-Without it, the mod is loaded when a level is entered. With it, the mod is loaded
-during startup, which is the only way to be present on the title screen before the
-player has entered anything.
+Without it: mod loads on level entry. With it: mod loads during startup — only
+way to be present on title screen before player entered anything.
 
-The cost is worth stating plainly, because it is not reversible from inside the
-game: with the flag, Besiege runs the mod's code *before* the player can reach the
-mods menu, so a fatal error in it locks them out of the game rather than out of the
-mod. Mods are never unloaded once loaded, so a mod without the flag is still
-present on the main menu after the first level — for anything that is not
-specifically about the title screen, that is the same result at none of the risk.
+Cost, not reversible from inside game: with the flag, Besiege runs mod code
+*before* player can reach mods menu, so fatal error locks them out of the game,
+not just the mod. Mods never unload once loaded, so mod without flag is still
+present on main menu after first level — for anything not specifically about the
+title screen, same result at none of the risk.
 
 ## The blacklist is a namespace prefix test, with carve-outs
 
-`InternalModding.Assemblies.AssemblyScanner` refuses an assembly that references
-any of these prefixes, tested as `(namespace + "." + typeName).StartsWith(prefix)`:
+`InternalModding.Assemblies.AssemblyScanner` refuses assembly referencing any of
+these prefixes, tested as `(namespace + "." + typeName).StartsWith(prefix)`:
 
 ```
 System.IO            System.Net           System.Xml          System.Reflection
@@ -214,7 +197,7 @@ UnityEngine.WWW      UnityEngine.MasterServer                 PlayFab
 Steamworks           GameGrind            InternalModding     BesiegeDlc
 ```
 
-and these **exact type names are exempted** from it:
+and these **exact type names are exempted**:
 
 ```
 System.IO.Stream        System.IO.TextWriter    System.IO.TextReader
@@ -223,104 +206,101 @@ System.IO.Path          System.IO.SeekOrigin    System.Diagnostics.Stopwatch
 System.Security.Cryptography                    Mono.CSharp.Tuple`2 / `3
 ```
 
-plus four individually forbidden methods: `XmlSaver.Save`, `LevelXMLSaver.Create`,
-`UnityEngine.AssetBundle.LoadFromFile` and `LoadFromFileAsync`.
+plus four individually forbidden methods: `XmlSaver.Save`,
+`LevelXMLSaver.Create`, `UnityEngine.AssetBundle.LoadFromFile`,
+`LoadFromFileAsync`.
 
-Read that carefully, because the shape of it is not what people assume:
+Read carefully — shape is not what people assume:
 
-- **`File` and `Directory` are refused, `Stream` and `Path` are not.** A mod can
-  handle bytes it is handed and cannot go and find any. `StringReader` and
-  `StringWriter` are `System.IO` and are refused despite being pure string work.
-- `System.Security.Cryptography` is exempted **as a type name**, so the individual
-  cipher classes under it are still refused.
-- `UnityEngine.WWW` catches `WWWForm` too, by prefix, but leaves
+- **`File` and `Directory` refused, `Stream` and `Path` not.** Mod can handle
+  bytes handed to it, cannot go find any. `StringReader` and `StringWriter` are
+  `System.IO`, refused despite being pure string work.
+- `System.Security.Cryptography` exempted **as a type name**, so individual
+  cipher classes under it still refused.
+- `UnityEngine.WWW` catches `WWWForm` too by prefix, leaves
   `UnityEngine.Networking.UnityWebRequest` alone.
 - **`Type.Name` is a `System.Reflection` call.** `x.GetType().Name` compiles to
-  `System.Reflection.MemberInfo::get_Name`, and one reference to it in one method
-  rejects the whole assembly. This is the easiest way to trip the blacklist without
-  going anywhere near reflection in your head: it turns up in logging, in switches
-  over an object's kind, in anything that formats a diagnostic. Test with `is`,
-  which compiles to `isinst` and costs nothing.
+  `System.Reflection.MemberInfo::get_Name`; one reference in one method rejects
+  whole assembly. Easiest way to trip blacklist without thinking about
+  reflection: turns up in logging, in switches over an object's kind, in anything
+  formatting a diagnostic. Test with `is` — compiles to `isinst`, costs nothing.
 
-The scanner walks field types, locals and IL operands. It does **not** enumerate
-custom attributes, which is why `[XmlRoot]`, `[XmlAttribute]` and friends are the
-supported way to name what a module deserialises even though `System.Xml` is
-blacklisted as code.
+Scanner walks field types, locals, IL operands. Does **not** enumerate custom
+attributes — why `[XmlRoot]`, `[XmlAttribute]` etc. are the supported way to name
+what a module deserialises even though `System.Xml` is blacklisted as code.
 
-### P/Invoke is refused separately, and that closes the native-code door
+### P/Invoke refused separately, closing the native-code door
 
 `AssemblyScanner` carries a **dedicated P/Invoke check** as well as the namespace
-test, with its own message:
+test, own message:
 
 ```
 "You are not allowed to use PInvoke!"
 ```
 
-So a `[DllImport]` is refused on its own terms, not merely as a side effect of
-`System.Runtime.InteropServices` being on the prefix list. Read it out of the
-scanner's string literals:
+So `[DllImport]` refused on own terms, not merely as side effect of
+`System.Runtime.InteropServices` being on prefix list. Read it out of scanner's
+string literals:
 
 ```sh
 ./tools/peek.sh dump InternalModding.Assemblies.AssemblyScanner | grep ldstr
 ```
 
-Taken together with `System.Diagnostics` being blacklisted — so no
-`Process.Start` either — this means **a mod cannot reach native code at all**,
-by any route. There is no partial way in and no flag that relaxes it.
+With `System.Diagnostics` blacklisted too — no `Process.Start` — **a mod cannot
+reach native code at all**, by any route. No partial way in, no flag relaxing it.
 
-That is worth knowing early, because a great many mod ideas have "wrap the
-library that already does this" as their obvious implementation. A text-to-speech
-mod cannot load DECtalk, eSpeak, Festival or SAPI; anything of that shape has to
-be reimplemented in managed code or reached over the network — and
-`UnityEngine.Networking.UnityWebRequest` is the one network API the blacklist
-leaves alone, at the cost of every player needing to run a server.
+Worth knowing early: many mod ideas have "wrap the library that already does
+this" as obvious implementation. TTS mod cannot load DECtalk, eSpeak, Festival or
+SAPI; anything that shape must be reimplemented in managed code or reached over
+network — and `UnityEngine.Networking.UnityWebRequest` is the one network API
+blacklist leaves alone, at cost of every player running a server.
 
-A build-time check wants `MethodDefinition.IsPInvokeImpl` alongside the namespace
-walk, or it will pass an assembly the loader refuses.
+Build-time check wants `MethodDefinition.IsPInvokeImpl` alongside namespace walk,
+else it passes an assembly the loader refuses.
 
-Worth building a check into the build script: scan the produced assembly against
-that list before the game refuses it, and the failure arrives with a line number
-instead of as a mod that silently does not load.
+Build a check into the build script: scan produced assembly against that list
+before game refuses it. Failure arrives with a line number instead of as a mod
+that silently doesn't load.
 
 ## The compiler is Besiege's own, and it is ancient
 
-A mod can ship a compiled DLL or C# sources compiled at load (`ScriptAssembly`).
-Either way it is worth building against Besiege's own `mcs.dll` driven through
-`libmono.so`, because then the build fails where the game would.
+Mod ships compiled DLL or C# sources compiled at load (`ScriptAssembly`). Either
+way build against Besiege's own `mcs.dll` driven through `libmono.so` — then
+build fails where game would.
 
 It is **C# 4**, and old:
 
 - no interpolated strings, no `?.`, no `nameof`, no expression-bodied members;
 - **any `enum` declaration segfaults it** — use `int` constants;
-- Besiege declares types in the **global namespace** that collide with Unity's,
-  and C# checks the global namespace before `using` directives. Enumerated against
-  `UnityEngine`, `UnityEngine.UI` and `UnityEngine.EventSystems`, four are worth
-  knowing: **`Slider`, `Scrollbar`, `LOD` and `Particle`**. Spell those out in
-  full; `Text`, `Image`, `Button`, `Canvas`, `Toggle`, `Dropdown` and `InputField`
-  are safe unqualified, and `EventSystems` collides with nothing. (A fifth name,
-  `UnityLogWriter`, collides too, and is named here only so the enumeration is not
-  silently short — nobody writes it.)
-  The symptom is a baffling error against `Assembly-CSharp.dll` — "Type `Slider'
-  does not contain a definition for `value'";
-- never name a member the same as its own type; the compiler resolves the member
-  and then fails to find the type.
+- Besiege declares types in **global namespace** colliding with Unity's, and C#
+  checks global namespace before `using` directives. Enumerated against
+  `UnityEngine`, `UnityEngine.UI`, `UnityEngine.EventSystems`, four matter:
+  **`Slider`, `Scrollbar`, `LOD`, `Particle`**. Spell those out in full. `Text`,
+  `Image`, `Button`, `Canvas`, `Toggle`, `Dropdown`, `InputField` safe
+  unqualified; `EventSystems` collides with nothing. (Fifth name,
+  `UnityLogWriter`, collides too, named only so enumeration isn't silently short
+  — nobody writes it.)
+  Symptom = baffling error against `Assembly-CSharp.dll` — "Type `Slider' does
+  not contain a definition for `value'";
+- never name a member same as its own type; compiler resolves the member then
+  fails to find the type.
 
-The same shadowing hazard has a second instance that is easier to hit and harder
-to read: Besiege bundles the **mod.io SDK**, which occupies a global `ModIO`
-namespace (`ModIO.APIMessage`, `ModIO.UI.*`), while the modding API's file class
-is `Modding.ModIO`. Inside a file with `using Modding;`, the bare name `ModIO` is
-ambiguous, and the error names two things that look identical. Fully qualify
-every `Modding` type — `Modding.ModIO`, `Modding.ModTexture` — rather than
-relying on the `using`.
+Second instance of same shadowing hazard, easier to hit and harder to read:
+Besiege bundles the **mod.io SDK**, occupying a global `ModIO` namespace
+(`ModIO.APIMessage`, `ModIO.UI.*`), while modding API's file class is
+`Modding.ModIO`. Inside a file with `using Modding;`, bare `ModIO` is ambiguous,
+and the error names two things that look identical. Fully qualify every `Modding`
+type — `Modding.ModIO`, `Modding.ModTexture` — rather than relying on the
+`using`.
 
 ## Compiled DLL or ScriptAssembly: the difference that matters
 
-`<Assemblies><Assembly path="X.dll" /></Assemblies>` ships a built assembly.
-`<ScriptAssembly>` points at a folder of `.cs` and has the game compile it. The
-second is far more convenient and has two properties that decide the question.
+`<Assemblies><Assembly path="X.dll" /></Assemblies>` ships built assembly.
+`<ScriptAssembly>` points at folder of `.cs`, game compiles it. Second is far
+more convenient; two properties decide the question.
 
-**A ScriptAssembly cannot reference another mod.** `AssemblyCompiler.
-ResolveScriptAssembly` builds its reference list as
+**A ScriptAssembly cannot reference another mod.**
+`AssemblyCompiler.ResolveScriptAssembly` builds reference list as
 
 ```csharp
 AppDomain.CurrentDomain.GetAssemblies()
@@ -328,76 +308,71 @@ AppDomain.CurrentDomain.GetAssemblies()
          .Select(a => a.Location)
 ```
 
-— everything already loaded into the AppDomain. The catch is *when* it runs.
-`AssemblyLoader.LoadMod` resolves (and therefore compiles) every mod's assemblies
-in the **load** phase; the actual `Assembly.LoadFrom` happens in `LoadAssembly`,
-called from `ActivateMod`, in the **activate** phase. So at the moment a
-ScriptAssembly is compiled, no other mod's assembly is in the AppDomain, and its
-types cannot be resolved. Depending on UI Factory — or on any other mod — means
-shipping a pre-built DLL, whose references bind lazily on first use, by which
-point the other mod is loaded. Every UI Factory dependent on the Workshop ships a
-`.dll` for this reason.
+— everything already loaded into AppDomain. Catch is *when* it runs.
+`AssemblyLoader.LoadMod` resolves (thus compiles) every mod's assemblies in
+**load** phase; actual `Assembly.LoadFrom` happens in `LoadAssembly`, called from
+`ActivateMod`, in **activate** phase. So when a ScriptAssembly compiles, no other
+mod's assembly is in AppDomain and its types cannot resolve. Depending on UI
+Factory — or any other mod — means shipping pre-built DLL, whose references bind
+lazily on first use, by which point other mod is loaded. Every UI Factory
+dependent on Workshop ships a `.dll` for this reason.
 
-The symptom, if you try it anyway, is `The type or namespace name 'UI' does not
-exist in the namespace 'Besiege'`, which reads like a missing reference rather
-than like a timing problem.
+Symptom if you try anyway: `The type or namespace name 'UI' does not exist in the
+namespace 'Besiege'` — reads like missing reference rather than timing problem.
 
-**The compile is cached once and never invalidated.** The compiled result goes to
-`Besiege_Data/Mods/.CompiledAssemblies/<mod>_<name>.dll`, and the resolver's only
-test is `File.Exists` on that path — there is no timestamp comparison against the
-sources anywhere in the method. A ScriptAssembly is therefore compiled **once,
-ever**: edit the sources and the game keeps running the first build, silently.
-Delete `.CompiledAssemblies` between runs, or accept that iteration is not what
-the mode offers.
+**Compile cached once, never invalidated.** Result goes to
+`Besiege_Data/Mods/.CompiledAssemblies/<mod>_<name>.dll`, and resolver's only
+test is `File.Exists` on that path — no timestamp comparison against sources
+anywhere in the method. ScriptAssembly compiles **once, ever**: edit sources and
+game keeps running first build, silently. Delete `.CompiledAssemblies` between
+runs, or accept iteration is not what the mode offers.
 
-Either way, build against Besiege's own compiler (below), because that is the one
-whose opinion counts.
+Either way build against Besiege's own compiler (above) — the one whose opinion
+counts.
 
 ## Module attributes: required unless defaulted
 
-For a block module (`BlockModule` + `BlockModuleBehaviour<T>`),
-`Serialization.Validate` builds its list of members to check as
+For block module (`BlockModule` + `BlockModuleBehaviour<T>`),
+`Serialization.Validate` builds check list as
 `members.Where(m => !m.IsDefined(typeof(DefaultValueAttribute)))` and reports any
-the XML did not supply as *"... must have &lt;name&gt; attribute!"* — after which
-**the whole block XML is dropped and the block never reaches the toolbar**.
+the XML didn't supply as *"... must have &lt;name&gt; attribute!"* — after which
+**whole block XML is dropped and block never reaches toolbar**.
 
-So: a field with `[DefaultValue]` is optional, a field without one is mandatory in
-every element of that kind. Besiege's own modules mark their optional attributes
-the same way — `Modding.Modules.Official.ShootingModule` marks eight. This is
-cheap to get wrong and expensive to diagnose, because the symptom is a missing
-block rather than an error, so it is worth a build-time check that reads the
-module source and the block XMLs and holds them to each other.
+So: field with `[DefaultValue]` optional, field without one mandatory in every
+element of that kind. Besiege's own modules mark optional attributes same way —
+`Modding.Modules.Official.ShootingModule` marks eight. Cheap to get wrong,
+expensive to diagnose (symptom = missing block, not error), so worth a build-time
+check reading module source + block XMLs and holding them to each other.
 
-**A C# field initialiser does not make an attribute optional.** `public float
-Decay = 2f;` still fails without the marker: the initialiser is what the value
-*becomes*, `[DefaultValue(2f)]` is what makes the attribute optional, and you
-want both. Writing the initialisers and assuming they were enough cost a mod nine
-blocks that would not load.
+**C# field initialiser does not make an attribute optional.** `public float Decay
+= 2f;` still fails without the marker: initialiser is what the value *becomes*,
+`[DefaultValue(2f)]` is what makes the attribute optional. Want both. Writing
+initialisers and assuming they sufficed cost a mod nine blocks that wouldn't
+load.
 
-**`Validate` returns at the first failure**, so the log names one attribute in one
-file even when a dozen are wrong. Fix them from the source, not one launch at a
-time.
+**`Validate` returns at first failure**, so log names one attribute in one file
+even when a dozen are wrong. Fix from source, not one launch at a time.
 
-**A `UnityEngine.Vector3` field on a module deserialises wrongly, and only warns.**
-Before it checks anything else, `Validate` walks the members looking for that exact
+**A `UnityEngine.Vector3` field on a module deserialises wrongly, and only
+warns.** Before checking anything else, `Validate` walks members for that exact
 type and logs
 
 > `<Type>.<field>: UnityEngine.Vector3 does not deserialize correctly. Consider
 > using Modding.Serialization.Vector3 instead.`
 
-then carries on and loads the block. So the block appears, works, and quietly has
-the wrong numbers in it — the one failure in this whole area that is not a missing
-block. Use `Modding.Serialization.Vector3` in anything a module deserialises.
+then carries on and loads the block. Block appears, works, quietly has wrong
+numbers — the one failure in this area that isn't a missing block. Use
+`Modding.Serialization.Vector3` in anything a module deserialises.
 
-That has a knock-on worth planning for: `using Modding.Serialization;` puts a
-second `Vector3` in scope, so a file that imports it *and* uses Unity's own
-`Vector3` no longer compiles. Keep the module classes in their own file, import
-`Modding.Serialization` only there, and let the behaviour files use Unity's.
+Knock-on: `using Modding.Serialization;` puts a second `Vector3` in scope, so a
+file importing it *and* using Unity's `Vector3` no longer compiles. Keep module
+classes in own file, import `Modding.Serialization` only there, let behaviour
+files use Unity's.
 
 ## `modid` on a module element is optional
 
-This one is widely got wrong, including in an earlier version of this note.
-`CustomModules.DeserializeBlockModules` reads the element's `modid` attribute and
+Widely got wrong, including an earlier version of this note.
+`CustomModules.DeserializeBlockModules` reads element's `modid` attribute and
 branches on whether it is there at all:
 
 ```csharp
@@ -408,41 +383,40 @@ registeredModules[elementName].FirstOrDefault(g => g.Mod == containingMod)
 registeredModules[elementName].FirstOrDefault(g => g.Mod.Info.Id.ToString() == modId)
 ```
 
-So **omitting it is correct and normal** — the loader already knows which mod the
-file came from. It exists so a block XML can use a module that a *different* mod
-registered. `createblock` writes one, which is why most block XML in the wild has
-one and why it looks compulsory.
+So **omitting it is correct and normal** — loader already knows which mod the
+file came from. It exists so a block XML can use a module a *different* mod
+registered. `createblock` writes one — why most block XML in the wild has one and
+why it looks compulsory.
 
-The asymmetry is the trap: an absent `modid` is fine, a **wrong** one is fatal and
-silent, because the GUID lookup is then the only thing tried. `Mod.xml`'s `<ID>`
-is generated by the game on first load, so a value copied from another mod, or
-written by hand before that first load, finds no module group at all. If you check
-it at build time, check it only where it is present.
+Asymmetry is the trap: absent `modid` fine, **wrong** one fatal and silent,
+because GUID lookup is then the only thing tried. `Mod.xml`'s `<ID>` is generated
+by game on first load, so a value copied from another mod, or hand-written before
+that first load, finds no module group at all. Check it at build time only where
+present.
 
 ## When a block does not appear
 
-In rough order of likelihood:
+Rough order of likelihood:
 
-1. the block XML did not parse — an XML comment may not contain two hyphens in a
-   row, which prose written with a dash produces easily;
-2. a required element is missing: `ID`, `Name`, `Mesh`, `Texture`, `Colliders`,
+1. block XML didn't parse — XML comment may not contain two hyphens in a row,
+   which prose written with a dash produces easily;
+2. required element missing: `ID`, `Name`, `Mesh`, `Texture`, `Colliders`,
    `BasePoint`, `AddingPoints`. `BasePoint` is the one that bites;
-3. a module attribute is missing per the rule above;
-4. the block's `modid`, *if it has one*, does not match `Mod.xml`'s `<ID>` — an
-   absent `modid` is legal, see above;
-5. the assembly was refused by the blacklist.
+3. module attribute missing per rule above;
+4. block's `modid`, *if it has one*, doesn't match `Mod.xml`'s `<ID>` — absent
+   `modid` is legal, see above;
+5. assembly refused by blacklist.
 
-None of these say anything useful in the toolbar. All of them say something in
-`Player.log`, under the tag `[Mods]`:
+None say anything useful in toolbar. All say something in `Player.log`, tag
+`[Mods]`:
 
 ```sh
 grep -a 'Mods\]' ~/.config/unity3d/Spiderling\ Games/Besiege/Player.log
 ```
 
-**Search for that tag, not for your mod's name.** The loader's messages name the
-*file* and the *element* — `InstrumentType (at line 16, column 6 in Piano.xml)
-must have loops attribute!` — and never the mod, so grepping for what you called
-it returns nothing and reads exactly like a mod that was never loaded. That
-mistake cost one debugging session an entire wrong diagnosis: the log had all nine
-errors in it the whole time. `-a` matters too, because the log picks up bytes that
-make grep treat it as binary.
+**Search that tag, not your mod's name.** Loader messages name the *file* and the
+*element* — `InstrumentType (at line 16, column 6 in Piano.xml) must have loops
+attribute!` — never the mod, so grepping your mod name returns nothing and reads
+exactly like a mod never loaded. That mistake cost one session an entire wrong
+diagnosis: log had all nine errors in it the whole time. `-a` matters too — log
+picks up bytes making grep treat it as binary.

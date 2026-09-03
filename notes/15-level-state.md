@@ -1,18 +1,17 @@
 # Reaching the whole level, and putting it back
 
-Notes from a mod whose blocks affect everything in the level rather than the
-machine they sit on. Two problems: getting code onto objects that are not yours,
-and undoing what it did.
+From a mod whose blocks affect everything in the level rather than the machine they
+sit on. Two problems: getting code onto objects that aren't yours, and undoing what
+it did.
 
 ## A block behaviour only reaches its own block
 
-`ModBlockBehaviour` gets you the block. To affect the enemy, the scenery, arrows,
-debris and other players' machines you need a component on **their** rigidbodies,
-and nothing hands you those.
+`ModBlockBehaviour` gets you the block. To affect the enemy, scenery, arrows, debris
+and other players' machines you need a component on **their** rigidbodies, and
+nothing hands you those.
 
-`SimBehaviour` is the base to use — it is what the game's own block scripts derive
-from, it is not blacklisted, and it gives you `isSimulating`, `SimPhysics` and
-`ParentMachine`.
+`SimBehaviour` is the base to use — what the game's own block scripts derive from,
+not blacklisted, gives you `isSimulating`, `SimPhysics` and `ParentMachine`.
 
 Bodies arrive by four routes and you need all four:
 
@@ -28,35 +27,33 @@ AddToEveryBody();                                        // the scene already up
 `GetComponent<T>() == null` guard. That last direct call matters: a mod is enabled
 partway through a session, and without it nothing works until the next scene load.
 
-`FindObjectsOfType` on every scene load is not cheap, but it runs once per load and
-there is no cheaper enumeration exposed.
+`FindObjectsOfType` on every scene load isn't cheap, but it runs once per load and
+there's no cheaper enumeration exposed.
 
 **Publish to one shared list rather than searching.** Different sources of the same
 effect — a block, a projectile a block spawned — have nothing in common to search
 for. Have each register itself in a `static Dictionary<string, T>` keyed by
-`GetInstanceID().ToString()`, and let the consumers iterate that. One loop then
-serves every kind of source.
+`GetInstanceID().ToString()`, and let consumers iterate that. One loop then serves
+every kind of source.
 
 **Use the indexer, not `Add`.** `Dictionary.Add` throws `ArgumentException` on a
-duplicate key. Reached from inside a coroutine that throw does not merely log — it
-abandons the rest of the coroutine, so the entry is registered and never cleaned
-up. `dict[key] = value` cannot fail.
+duplicate key. Reached from inside a coroutine that throw doesn't merely log — it
+abandons the rest of the coroutine, so the entry is registered and never cleaned up.
+`dict[key] = value` cannot fail.
 
 ## Level state is global, and nothing puts it back for you
 
 `Physics.gravity`, `RenderSettings.ambientLight` and `RenderSettings.ambientIntensity`
-belong to the level. Write them during a run and they stay written: through the
-build area, through the next run, and into the **next level**. A mod that dims the
-sky and forgets leaves the game dim until restart.
+belong to the level. Write them during a run and they stay written: through the build
+area, through the next run, and into the **next level**. A mod that dims the sky and
+forgets leaves the game dim until restart.
 
-This is not the sim clone's problem — see
-[08-block-lifecycle.md](08-block-lifecycle.md). The clone is rebuilt every run, so
-its own fields need no resetting. What needs resetting is precisely the things it
-touched that outlive it.
+Not the sim clone's problem — see [08-block-lifecycle.md](08-block-lifecycle.md). The
+clone is rebuilt every run, so its own fields need no resetting. What needs resetting
+is precisely the things it touched that outlive it.
 
-The shape that works: capture once, lazily, on the first write; restore from
-whichever callback notices the run ended first; guard both with a flag so they are
-idempotent.
+Shape that works: capture once, lazily, on the first write; restore from whichever
+callback notices the run ended first; guard both with a flag so they're idempotent.
 
 ```csharp
 private static bool captured;
@@ -78,12 +75,12 @@ public static void Restore()
 ```
 
 **Capture the level's value; never hardcode it.** The mod this came from scaled
-gravity from a literal `new Vector3(0f, -32.81f, 0f)`, so enabling the effect in
-any level with different gravity snapped it to that number.
+gravity from a literal `new Vector3(0f, -32.81f, 0f)`, so enabling the effect in any
+level with different gravity snapped it to that number.
 
 **Respect the player's own overrides.** `StatMaster.GodTools.GravityDisabled` is a
-public static bool: gravity the player turned off themselves is not yours to write,
-on the way in *or* on the way out.
+public static bool: gravity the player turned off themselves isn't yours to write, on
+the way in *or* out.
 
 **`SimBehaviour` has no `OnSimulateStop`.** A component on a level body gets no run
 callbacks at all — those are `ModBlockBehaviour`'s. Watch `isSimulating` go false in
@@ -98,17 +95,17 @@ if (!isSimulating)
 ```
 
 A block behaviour's `OnSimulateStop` is a good second path to the same `Restore()`,
-since it is idempotent.
+since it's idempotent.
 
 ## Derived thresholds go stale
 
-If a console command or a mapper value feeds numbers that other values are computed
-from, do not compute them once at startup. The mod this came from built its altitude
-bands on the eighth simulated frame **and only if the effect was already enabled** —
-and the effect is off by default and enabled by a console command, so in practice
-every boundary was zero and the first comparison sent gravity to nothing.
+If a console command or mapper value feeds numbers other values are computed from,
+don't compute them once at startup. The mod this came from built its altitude bands
+on the eighth simulated frame **and only if the effect was already enabled** — and
+the effect is off by default and enabled by a console command, so in practice every
+boundary was zero and the first comparison sent gravity to nothing.
 
-Recompute when the inputs have moved, not once:
+Recompute when inputs have moved, not once:
 
 ```csharp
 if (cachedMin == Mod.minAltitude && cachedMax == Mod.maxAltitude) return;
@@ -119,6 +116,6 @@ Seed the cached copies with `float.NaN` so the first call always rebuilds.
 
 ## Do not log per body
 
-A message about a global change, written from a component that is on every
-rigidbody in the level, is that message a few hundred times. Log it from wherever
-owns the global, or not at all.
+A message about a global change, written from a component on every rigidbody in the
+level, is that message a few hundred times. Log it from wherever owns the global, or
+not at all.
