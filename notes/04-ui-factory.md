@@ -135,7 +135,7 @@ canvas, shared, assigned by `Besiege.UI.Mod` rather than by `Make`. Make your ow
 `ScreenSpaceOverlay`, a `sortingOrder` of your choosing, a `CanvasScaler` on
 `ScaleWithScreenSize` matching height against 1920x1080, and a `GraphicRaycaster` —
 on a `DontDestroyOnLoad` object so it survives the scene change. That's what
-Orchestra does for its block panels, and it settles the stencil question, the
+Music does for its block panels, and it settles the stencil question, the
 measuring question and draw order together.
 
 Position it from the anchor's `GetWorldCorners` plus `RectTransformUtility`, when
@@ -543,8 +543,10 @@ hammer, stopping most keyboard input too. Use the zoom counter.
 
 `Assembly-CSharp` has a global `Scrollbar`, so `using UnityEngine.UI;` doesn't get
 you `UnityEngine.UI.Scrollbar` — you get Besiege's, and the errors read as though
-uGUI's fields went missing. Qualify it. `Image`, `Text`, `Button`, `Slider` and
-`ScrollRect` don't collide.
+uGUI's fields went missing. Qualify it. **`Slider` collides the same way** — it is a
+global Besiege `MonoBehaviour`, and an earlier version of this line said it did not.
+`Image`, `Text`, `Button` and `ScrollRect` don't collide. Full list, plus the reverse
+hazard of naming a type of *yours* `Keys` or `Convert`, in 01.
 
 ## The Bridge components, in full
 

@@ -1,4 +1,4 @@
-# Every Besiege API named in these notes. Re-run after a game update:
+# Every Besiege API named in these notes. Re-run after game update:
 #   ./tools/peek.sh check tools/claims-besiege.txt
 # See notes/06-reading-the-game.md.
 
@@ -11,6 +11,14 @@ Modding.ModResource
 Modding.ModResource::AllResourcesLoaded
 Modding.ModIO
 InternalModding.Misc.ModPaths
+# global type names that shadow Unity's, or collide with a mod's own
+Slider
+Scrollbar
+LOD
+Particle
+Keys
+Keys::Alpha0
+UnityLogWriter
 
 # --- 09 overlay: the click-through finding
 ClickBehaviour
@@ -255,7 +263,7 @@ Selectors.MenuSelector
 Selectors.TextHolderAutocomplete
 
 # Generating a machine from a mod: the additive load, and writing a .bsg
-# (Orchestra's MIDI loader block)
+# (Music's MIDI loader block)
 Machine::AddBlocksFromInfo
 Machine::isLoadingInfo
 Machine::onBatchOperationComplete

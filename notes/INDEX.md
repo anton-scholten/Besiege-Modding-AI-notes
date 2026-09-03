@@ -1,7 +1,7 @@
 # Section index
 
-Every `##` heading in every note, with its line number. Read one section, not the
-whole note:
+Every `##` heading in every note, with line number. Read one section, not whole
+note:
 
 ```sh
 sed -n '186,265p' notes/01-loader-and-blacklist.md    # "The blacklist is a namespace..."
@@ -9,8 +9,8 @@ grep -n '^## ' notes/04-ui-factory.md                 # sections of one note
 grep -rn 'DisplayInMapper' notes/                     # which notes name a symbol
 ```
 
-Regenerate after editing a note: `./tools/index.sh`. Symbol map is hand-kept and
-lives at the bottom.
+Regenerate after editing a note: `./tools/index.sh`. Symbol map hand-kept, lives at
+bottom.
 
 ## 01-loader-and-blacklist.md
 
@@ -20,10 +20,11 @@ lives at the bottom.
 - `175` `<LoadInTitleScreen />` decides when the mod's code first runs
 - `186` The blacklist is a namespace prefix test, with carve-outs
 - `265` The compiler is Besiege's own, and it is ancient
-- `296` Compiled DLL or ScriptAssembly: the difference that matters
-- `333` Module attributes: required unless defaulted
-- `372` `modid` on a module element is optional
-- `397` When a block does not appear
+- `297` A short public type name of your own collides three ways
+- `334` Compiled DLL or ScriptAssembly: the difference that matters
+- `371` Module attributes: required unless defaulted
+- `410` `modid` on a module element is optional
+- `435` When a block does not appear
 
 ## 02-blocks.md
 
@@ -76,18 +77,18 @@ lives at the bottom.
 - `508` Hover swell does not ask whether the control works
 - `522` The wheel over your panel also zooms the camera
 - `542` `Scrollbar` is one of Besiege's own type names
-- `549` The Bridge components, in full
-- `567` Any part of a window can be a drag handle
-- `586` Keep your canvas below `sortingOrder` 30000
-- `593` Own the window's anchors before remembering where it is
-- `607` You cannot colour a UI Factory graphic; put one of your own in front of it
-- `627` A button inside a button works; a heading that fits its own button is the work
-- `641` Whether a prefab's label is the prefab
-- `650` UI Factory has no colour picker, and Besiege's is out of reach
-- `680` Borrowing a prefab's own corners
-- `692` What is in UI Factory's sprite bundle cannot be listed
-- `705` Committing a typed value
-- `721` The house style: how a selector and a toggle are built
+- `551` The Bridge components, in full
+- `569` Any part of a window can be a drag handle
+- `588` Keep your canvas below `sortingOrder` 30000
+- `595` Own the window's anchors before remembering where it is
+- `609` You cannot colour a UI Factory graphic; put one of your own in front of it
+- `629` A button inside a button works; a heading that fits its own button is the work
+- `643` Whether a prefab's label is the prefab
+- `652` UI Factory has no colour picker, and Besiege's is out of reach
+- `682` Borrowing a prefab's own corners
+- `694` What is in UI Factory's sprite bundle cannot be listed
+- `707` Committing a typed value
+- `723` The house style: how a selector and a toggle are built
 
 ## 05-docking-a-window.md
 
@@ -232,14 +233,14 @@ lives at the bottom.
 
 # Symbol map
 
-Which note names a thing. Notes by number; open the section index above, then the
-note.
+Which note names a thing. Notes by number; open section index above, then note.
 
 | Symbol / topic | Notes |
 | --- | --- |
 | `Modding.ModIO`, file access | 01, 02, 06, 10, 12 |
 | `AssemblyScanner`, blacklist, P/Invoke | 01 |
 | `ScriptAssembly` vs prebuilt DLL | 01 |
+| global type names, `Slider`/`Scrollbar`/`Keys`/`Convert` collisions | 01, 04 |
 | `[DefaultValue]`, module attributes | 01, 06 |
 | `Mod.xml`, `<ID>`, required elements | 01, 10 |
 | `BlockPrefab`, `PrefabMaster`, block ids | 02, 03, 13 |

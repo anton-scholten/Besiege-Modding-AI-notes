@@ -1,5 +1,5 @@
-/* Runs Besiege's own in-game C# compiler (mcs.dll) offline, via the Mono
-   embedding API, so mod compile errors can be found without launching the game.
+/* Runs Besiege's own in-game C# compiler (mcs.dll) offline via Mono embedding
+   API, so mod compile errors surface without launching game.
    Usage: besiegecc <mcs args...> */
 #include <dlfcn.h>
 #include <stdio.h>

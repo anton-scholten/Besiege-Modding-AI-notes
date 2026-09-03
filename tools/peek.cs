@@ -1,5 +1,5 @@
-// Reads Besiege's own assemblies with the Mono.Cecil that ships in
-// Besiege_Data/Managed. Every API claim in these notes was checked with this.
+// Reads Besiege's own assemblies with Mono.Cecil shipping in
+// Besiege_Data/Managed. Every API claim in these notes checked with this.
 //
 //   ./tools/peek.sh types <substring> [assembly...]   types whose name matches
 //   ./tools/peek.sh sig   <Type>                      fields, props, methods
@@ -10,8 +10,8 @@
 //   ./tools/peek.sh check <file>                      one "Type" or "Type::Member" per
 //                                                     line -> ok / MISSING
 //
-// `check` is the one that matters for these notes: keep a list of every API a
-// document claims, and re-run it against a new Besiege before trusting the document.
+// `check` is the one that matters: keep list of every API a document claims,
+// re-run against new Besiege before trusting document.
 using System;
 using System.Collections.Generic;
 using System.IO;

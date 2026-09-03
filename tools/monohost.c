@@ -1,5 +1,5 @@
-/* Minimal host for Besiege's embedded Mono, so we can run the game's own mcs.dll
-   compiler offline instead of discovering compile errors by launching the game. */
+/* Minimal host for Besiege's embedded Mono: runs game's own mcs.dll compiler
+   offline instead of finding compile errors by launching game. */
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>

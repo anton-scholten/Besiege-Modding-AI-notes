@@ -133,7 +133,7 @@ mid = centroid(points)
 assert dot(n, mid - centre_of_this_box) > 0
 ```
 
-Orchestra's download-arrow block shipped with all six arrowhead triangles
+Music's download-arrow block shipped with all six arrowhead triangles
 inverted; check above is now in the tool that generates it.
 
 ## A block needs `<AddingPoints>`, and `hasAddingPoint="true"` is not a substitute

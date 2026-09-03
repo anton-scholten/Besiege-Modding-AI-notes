@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 #
-# Runs tools/peek.cs against Besiege's assemblies, using Besiege's own embedded
-# Mono and its own C# compiler. Nothing to install: if the game is on the disk,
-# this works.
+# Runs tools/peek.cs against Besiege's assemblies, on Besiege's own embedded Mono
+# and its own C# compiler. Nothing to install: game on disk is enough.
 #
 #   ./tools/peek.sh sig FileBrowserSlot
 #   ./tools/peek.sh check my-claims.txt
 #   ./tools/peek.sh types Selector -- UIFactory     # also load UI Factory's DLLs
 #
-# By default it reads Assembly-CSharp.dll and Assembly-CSharp-firstpass.dll. Put
-# `-- UIFactory` at the end to add UI Factory's, or `-- <path.dll>` for any other.
-# Set BESIEGE_DIR if the game is not found automatically.
+# Default set: Assembly-CSharp.dll, Assembly-CSharp-firstpass.dll. Append
+# `-- UIFactory` to add UI Factory's, or `-- <path.dll>` for any other. Set
+# BESIEGE_DIR if game not found automatically.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD="${TMPDIR:-/tmp}/besiege-notes-tools"
@@ -55,8 +54,8 @@ for a in "$@"; do
     if [[ $seen -eq 1 ]]; then EXTRA+=("$a"); else ARGS+=("$a"); fi
 done
 
-# DynamicText.dll is in the default set because the mapper's text lives there,
-# and leaving it out made the shipped claims file report misses that were not.
+# DynamicText.dll in default set: mapper's text lives there, and leaving it out
+# made shipped claims file report misses that were not.
 ASMS=("$MANAGED/Assembly-CSharp.dll" "$MANAGED/Assembly-CSharp-firstpass.dll"
       "$MANAGED/DynamicText.dll")
 for e in "${EXTRA[@]:-}"; do

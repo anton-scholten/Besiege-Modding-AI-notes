@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
-"""Reads a Unity 5.4 asset bundle and prints the prefab hierarchies inside it.
+"""Reads Unity 5.4 asset bundle, prints prefab hierarchies inside it.
 
     python3 tools/unbundle.py <bundle>                 every root, with components
     python3 tools/unbundle.py <bundle> Window          just the roots matching a name
     python3 tools/unbundle.py <bundle> Window --fields  ... and each component's fields
 
-This is how UI Factory's `Window` prefab was read rather than guessed: which
-children it has, which components sit on them, and what every serialised field on
-those components is set to. `strings` on the bundle gets you names in file order;
-this gets you the structure.
+How UI Factory's `Window` prefab was read rather than guessed: which children it
+has, which components sit on them, what every serialised field on those components
+is set to. `strings` on bundle gets names in file order; this gets structure.
 
-No dependencies beyond the standard library and `lz4` (Debian: python3-lz4). LZMA
-blocks use the stdlib `lzma`.
+No dependencies beyond stdlib and `lz4` (Debian: python3-lz4). LZMA blocks use
+stdlib `lzma`.
 
-What it does, in order: unwrap the UnityFS container (header, block table, blocks,
-directory), parse the SerializedFile inside it (version 15, with type trees), then
-read each object generically by walking its type tree. Unity's type trees carry
-enough information to decode an object without knowing the class, which is what
-makes this short.
+Order: unwrap UnityFS container (header, block table, blocks, directory), parse
+SerializedFile inside (version 15, with type trees), read each object generically
+by walking its type tree. Unity's type trees carry enough to decode an object
+without knowing the class — why this is short.
 """
 
 import lzma
@@ -77,8 +75,8 @@ def decompress(chunk, raw_size, method):
 
 # ------------------------------------------------------------- SerializedFile
 
-# Unity's built-in string table for type-tree names, indexed by byte offset. An
-# offset with the top bit set indexes this rather than the file's own buffer.
+# Unity's built-in string table for type-tree names, indexed by byte offset.
+# Offset with top bit set indexes this rather than file's own buffer.
 COMMON_STRINGS = (
     "AABB\0AnimationClip\0AnimationCurve\0AnimationState\0Array\0Base\0BitField\0"
     "bitset\0bool\0char\0ColorRGBA\0Component\0data\0deque\0double\0dynamic_array\0"

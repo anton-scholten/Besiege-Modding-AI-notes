@@ -133,7 +133,7 @@ Modding.ModIO.GetFiles("", false);        // tries to list Mods/ -- and throws
 ```
 
 Last one = natural way to ask "what is in my mod's folder", and the one that
-cannot work. Orchestra used it to find block XMLs; catalogue came back empty, and
+cannot work. Music used it to find block XMLs; catalogue came back empty, and
 in game read as *instrument blocks could not be read*. Manifest already lists
 every block — read list from there.
 
@@ -276,10 +276,11 @@ It is **C# 4**, and old:
   checks global namespace before `using` directives. Enumerated against
   `UnityEngine`, `UnityEngine.UI`, `UnityEngine.EventSystems`, four matter:
   **`Slider`, `Scrollbar`, `LOD`, `Particle`**. Spell those out in full. `Text`,
-  `Image`, `Button`, `Canvas`, `Toggle`, `Dropdown`, `InputField` safe
-  unqualified; `EventSystems` collides with nothing. (Fifth name,
+  `Image`, `Button`, `Canvas`, `Toggle`, `Dropdown`, `InputField`, `ScrollRect`
+  safe unqualified; `EventSystems` collides with nothing. (Fifth name,
   `UnityLogWriter`, collides too, named only so enumeration isn't silently short
-  — nobody writes it.)
+  — nobody writes it. Sixth, `Keys`, collides with nothing of Unity's and plenty
+  of yours — see next section.)
   Symptom = baffling error against `Assembly-CSharp.dll` — "Type `Slider' does
   not contain a definition for `value'";
 - never name a member same as its own type; compiler resolves the member then
@@ -292,6 +293,43 @@ Besiege bundles the **mod.io SDK**, occupying a global `ModIO` namespace
 and the error names two things that look identical. Fully qualify every `Modding`
 type — `Modding.ModIO`, `Modding.ModTexture` — rather than relying on the
 `using`.
+
+## A short public type name of your own collides three ways
+
+Previous section is about Unity's names shadowed by Besiege's. Same hazard runs
+the other way: a short, obvious name for a **public** type of yours is a hazard
+against three sets at once — Besiege's globals, `System`, `UnityEngine`.
+
+Trap is that it **compiles**. Inside your own namespace nearer name wins and
+nothing complains. Breaks only where something in the *global* namespace does
+`using YourMod;` and names the type — a build-time check, a probe compile, a
+`ScriptAssembly` file that forgot its namespace.
+
+Two that cost real time on Timer Plus:
+
+- **`Keys`** — global type in `Assembly-CSharp`, table of key-name strings
+  (`Keys.Alpha0`, static `String` per key). Mod class called `Keys` fails as
+  ``'Keys' does not contain a definition for `Spell'`` with **Besiege's own
+  assembly** named as the location, reading like a Besiege API that moved.
+- **`Convert`** — not a Besiege global at all; `System.Convert`. Class turning
+  Timer Plus's table into real timer blocks was called that. Error:
+
+  ```
+  error CS0117: `System.Convert' does not contain a definition for `Spell'
+  mscorlib.dll (Location of the symbol related to previous error)
+  ```
+
+Both errors name **somebody else's assembly** as location, which is what makes
+them read as API drift rather than a name clash.
+
+Two checks, seconds each, worth running on anything shipped `public`:
+
+```sh
+./tools/peek.sh types Convert    # substring match; a global has no dot in its name
+```
+
+and a probe compile of one throwaway file in the *global* namespace doing
+`using System; using UnityEngine; using YourMod;` and naming the type.
 
 ## Compiled DLL or ScriptAssembly: the difference that matters
 
