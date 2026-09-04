@@ -1,6 +1,6 @@
 # Besiege modding notes, for agents
 
-<img src="Thumbnail.png" alt="" width="150" align="right">
+<img src="Thumbnail.png" alt="thumbnail" width="200" align="right">
 
 Working notes on Besiege's built-in mod loader. Gathered writing mods, kept because
 most of it written down nowhere else. For whoever — or whatever — must find it out
@@ -82,7 +82,7 @@ of August 2026. Re-run before trusting any of this against newer build.
 | [07-audio.md](notes/07-audio.md) | generating audio in a block, and why Unity's own 3D panning cannot be used for it |
 | [08-block-lifecycle.md](notes/08-block-lifecycle.md) | which callbacks reach which object, hooks never called, holding the keyboard |
 | [09-overlay-ui.md](notes/09-overlay-ui.md) | full-screen overlay of your own: uGUI vs `OnGUI`, **why a canvas does not stop Besiege's own buttons being clicked**, transparency that composites wrong, rich text, scene names |
-| [10-resources-and-publishing.md](notes/10-resources-and-publishing.md) | `<Resources>` vs runtime loading, icons and textures, why uploading resets your Workshop preview |
+| [10-resources-and-publishing.md](notes/10-resources-and-publishing.md) | `<Resources>` vs runtime loading, icons and textures, why uploading resets your Workshop preview, **the README shape every mod in this family uses** |
 | [11-the-load-screen.md](notes/11-the-load-screen.md) | file browser is mesh UI, not uGUI: copying a slot's button, repainting it, `IVirtualObject` |
 | [12-machines-and-saves.md](notes/12-machines-and-saves.md) | autosave folder, reading a `.bsg` without file access, `MachineInfo`/`BlockInfo`, blocks that are several blocks, **adding generated blocks as a selection**, writing a save when `XmlSaver.Save` forbidden |
 | [13-drawing-over-the-machine.md](notes/13-drawing-over-the-machine.md) | marking blocks with game's own placement ghosts, and layer that makes your own shapes invisible |

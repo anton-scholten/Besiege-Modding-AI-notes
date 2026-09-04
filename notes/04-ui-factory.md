@@ -339,7 +339,31 @@ The prefab lays itself out: root carries a `VerticalLayoutGroup` and a
 from the label — which is a **sibling**, not a child. Two consequences. Sizing the
 panel by hand does nothing, because the fitter overwrites it next layout pass; and
 to reserve room inside the panel (icon beside the text, say), pad the layout group
-rather than resizing anything.
+rather than resizing anything. And to hold a long line to a readable measure, put a
+`LayoutElement` on the **label** with `preferredWidth` set from
+`Text.preferredWidth` clamped — a fitter defers to a LayoutElement and to nothing
+else, so that is the one handle on a self-sizing panel's width.
+
+**One shared panel is the right shape for a scrolling list, and costs two things.**
+A panel per control cannot survive a list whose rows are switched off as they leave
+the frame: the tooltip is clipped with its row and hidden with it. Move one panel
+to whatever is hovered instead, parented to the canvas rather than into a row.
+What then has to be added back:
+
+- **`SetAsLastSibling()` on every showing.** uGUI draws siblings in order, and
+  anything respawned later — a window rebuilt when its contents change — lands
+  after the tooltip and covers it. Once, at build time, is not enough.
+- **Placement measured off the whole panel, not its rect.** `Background` is
+  stretched past the root by 20 units each side and 9 top and bottom, and the
+  point hangs outside that again, so putting the *root's* edge against the control
+  leaves the bubble covering it. `CalculateRelativeRectTransformBounds(panel,
+  panel)` gives what is actually drawn; place that. Set the point's side first —
+  it moves between two edges and the bounds change with it.
+- **A fade.** `Besiege.UI.Bridge.Tooltip` fades and slides the panel it owns, and a
+  shared panel that hard-switches instead reads as a box flashing on and off as the
+  pointer crosses a row of icons. A `CanvasGroup` on the panel, alpha lerped on
+  `Time.unscaledDeltaTime` (unscaled: the build menu is open at any time scale),
+  plus a few pixels of drift towards what it explains, is the whole of it.
 
 ## A window sized to its contents needs an edge to grow from
 

@@ -34,18 +34,19 @@ bottom.
 - `115` A generated mesh has to be wound right the first time
 - `139` A block needs `<AddingPoints>`, and `hasAddingPoint="true"` is not a substitute
 - `192` The toolbar icon
-- `220` A mesh may be an outer skin with no inside
-- `228` Colouring part of a block's mesh, without a second material
-- `249` Taking the skin picker off a block
-- `308` A block's visual is not its transform
-- `319` The limits dial's little block is posed by `<LimitsDisplay>` alone
-- `359` How a machine save names a modded block
-- `402` Text in the world draws through everything, until you change its shader
-- `455` `MSlider` does not clamp, but loading does
-- `478` A block that previews itself needs a clock every block shares
-- `500` Values that only some settings can use
-- `513` A lamp block shadows itself, and `shadowNearPlane` is the way out
-- `553` The terrain does not take shadows from a light you add
+- `239` A mesh may be an outer skin with no inside
+- `247` Colouring part of a block's mesh, without a second material
+- `268` Taking the skin picker off a block
+- `327` A block's visual is not its transform
+- `338` The limits dial's little block is posed by `<LimitsDisplay>` alone
+- `378` How a machine save names a modded block
+- `421` Text in the world draws through everything, until you change its shader
+- `474` `MSlider` does not clamp, but loading does
+- `497` A block that previews itself needs a clock every block shares
+- `519` Values that only some settings can use
+- `532` A lamp block shadows itself, and `shadowNearPlane` is the way out
+- `572` The terrain does not take shadows from a light you add
+- `602` Making a block decoration: collider, visibility, mass
 
 ## 03-keys-and-automation.md
 
@@ -67,28 +68,28 @@ bottom.
 - `290` Two rows governed by one control
 - `297` Rows that come and go, and closing up the gap
 - `322` Tooltips
-- `344` A window sized to its contents needs an edge to grow from
-- `353` Depend on it softly
-- `385` If you build a text field by hand
-- `410` Committing a setting is not the same as setting it
-- `418` Rebuild or rebind, but write every caption every time
-- `451` Do not churn `DisplayInMapper`
-- `466` The `Window` prefab's Viewport masks nothing until you size it
-- `508` Hover swell does not ask whether the control works
-- `522` The wheel over your panel also zooms the camera
-- `542` `Scrollbar` is one of Besiege's own type names
-- `551` The Bridge components, in full
-- `569` Any part of a window can be a drag handle
-- `588` Keep your canvas below `sortingOrder` 30000
-- `595` Own the window's anchors before remembering where it is
-- `609` You cannot colour a UI Factory graphic; put one of your own in front of it
-- `629` A button inside a button works; a heading that fits its own button is the work
-- `643` Whether a prefab's label is the prefab
-- `652` UI Factory has no colour picker, and Besiege's is out of reach
-- `682` Borrowing a prefab's own corners
-- `694` What is in UI Factory's sprite bundle cannot be listed
-- `707` Committing a typed value
-- `723` The house style: how a selector and a toggle are built
+- `368` A window sized to its contents needs an edge to grow from
+- `377` Depend on it softly
+- `409` If you build a text field by hand
+- `434` Committing a setting is not the same as setting it
+- `442` Rebuild or rebind, but write every caption every time
+- `475` Do not churn `DisplayInMapper`
+- `490` The `Window` prefab's Viewport masks nothing until you size it
+- `532` Hover swell does not ask whether the control works
+- `546` The wheel over your panel also zooms the camera
+- `566` `Scrollbar` is one of Besiege's own type names
+- `575` The Bridge components, in full
+- `593` Any part of a window can be a drag handle
+- `612` Keep your canvas below `sortingOrder` 30000
+- `619` Own the window's anchors before remembering where it is
+- `633` You cannot colour a UI Factory graphic; put one of your own in front of it
+- `653` A button inside a button works; a heading that fits its own button is the work
+- `667` Whether a prefab's label is the prefab
+- `676` UI Factory has no colour picker, and Besiege's is out of reach
+- `706` Borrowing a prefab's own corners
+- `718` What is in UI Factory's sprite bundle cannot be listed
+- `731` Committing a typed value
+- `747` The house style: how a selector and a toggle are built
 
 ## 05-docking-a-window.md
 
@@ -146,10 +147,16 @@ bottom.
 ## 10-resources-and-publishing.md
 
 - `3` `<Resources>` is a manifest, and that is a design decision
-- `33` Uploading resets your Workshop preview image
-- `68` A read-only file in the staging folder stops every upload
-- `86` `<ID>` and what breaks
-- `93` What ships and what is fetched
+- `45` Uploading resets your Workshop preview image
+- `80` A read-only file in the staging folder stops every upload
+- `98` `<ID>` and what breaks
+- `105` What ships and what is fetched
+- `122` The README every mod in this family uses
+- `145` Install
+- `146` <one section per thing the player does>
+- `147` Notes
+- `148` Credits
+- `149` Licence
 
 ## 11-the-load-screen.md
 

@@ -22,6 +22,18 @@ Alternative: declare nothing and read files at runtime through `Modding.ModIO` (
 `Texture2D.LoadImage`. The mod then discovers its own content by listing directories,
 and installing an addition really is a folder drop.
 
+**A declared texture goes straight into uGUI as a `RawImage`.**
+`ModResource.GetTexture(name)` hands back a `Texture`, which is exactly what
+`RawImage.texture` takes — no `Sprite` to build, nothing to own, nothing assumed
+about the texture's type. `Image` is the wrong component here for the same reason.
+Worth knowing before writing sprite-making code: a mod's own artwork in a panel is
+two lines. Draw white artwork on transparency and tint it with `RawImage.color`,
+and one file serves every colour the interface uses it in.
+
+Nothing checks the manifest against the disk, either, and a texture the code loads
+by name is mentioned nowhere the game validates: a mistyped `path` shows up as a
+control that is simply not drawn. Worth a line in whatever checks the XML.
+
 **Textures are decoded by Unity, which reads PNG and JPG only.** Everything in the
 resource path ends at `Texture2D.LoadImage(byte[])`. A GIF, animated or not, loads as
 nothing at all — no error worth reading, just a blank texture.
@@ -106,3 +118,55 @@ similar:
 
 Building the game's own art from the player's install has a second benefit beyond
 licensing: the art matches the version they're playing.
+
+## The README every mod in this family uses
+
+A player arrives at the repository, not at the code. Same shape every time, so a
+reader who has seen one mod knows where to look in the next, and so the Workshop
+description can be lifted straight off the top of the file:
+
+```markdown
+# Besiege <Mod Name>
+
+<img src="<ModFolder>/Resources/<icon>.png" alt="thumbnail" width="200" align="right">
+
+<One sentence: what it does>, in [Besiege](https://store.steampowered.com/app/346010/Besiege/).
+
+![<what the picture shows>](Promo_1.jpg)
+
+<A paragraph or two on what it is for and why it is not the obvious thing.>
+
+**[UI Factory](https://steamcommunity.com/sharedfiles/filedetails/?id=2913469777)**
+(another Besiege mod which enables the nice UI, see workshop item `2913469777`)
+<... or the mod won't load. | ... is optional here. Without it, ...>
+
+<br clear="right">
+
+## Install
+## <one section per thing the player does>
+## Notes
+## Credits
+## Licence
+```
+
+The parts that are not obvious:
+
+- **The thumbnail is the mod's own `<Icon>` texture**, floated right at 200px, not
+  a copy kept beside the README. One image, and it cannot drift from what the mods
+  menu shows. Point it at the icon, never at a block's UV texture.
+- **`<br clear="right">` before `## Install`.** Without it a heading or a fenced
+  code block runs up beside the floated image and the install commands wrap into a
+  narrow column.
+- **The UI Factory sentence says which of the two it is** — hard requirement
+  ("or the mod won't load") or soft ("is optional here", and then what happens
+  without it). A mod that does not use UI Factory omits the sentence entirely.
+- **`## Credits` only when something is actually owed** — a model, a soundfont, a
+  vendored library, artwork that isn't yours. Writing "nothing of anyone else's is
+  in this mod" is a sentence that has to be re-checked every time the mod grows an
+  asset, and is wrong the moment nobody does.
+- **`## Licence` is last and states the same licence as `LICENSE`.** Worth
+  actually reading the file: two of these repositories claimed MIT in the README
+  over a GPL-3.0 `LICENSE`, which nobody noticed for a year.
+- Everything an agent needs goes in `AGENTS.md`, everything the modding API cost
+  goes in `docs/MODDING-NOTES.md`, and `## Notes` carries a one-line pointer at
+  both. The README stays the player's document.

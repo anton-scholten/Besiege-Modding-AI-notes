@@ -192,19 +192,38 @@ uses `±0.05`. Keep top at `z = 1.0` regardless, or it comes off the grid.
 ## The toolbar icon
 
 `<Icon>` gives position, rotation, scale for a second camera photographing the
-block for its toolbar tile. Two non-obvious things:
+block for its toolbar tile. A few non-obvious things:
 
 - **icon camera looks along +z**, not the -z a Unity camera defaults to. Undo the
   icon rotation to find where camera stands in block's frame and you get the
   *opposite* of the truth unless you negate. Measured, not reasoned: a pose worked
   out on the un-negated assumption drew every block from behind and below — legs,
   undersides, bottom drum heads.
-- **Euler triple cannot roll the picture.** Rotation is Y, then X, then Z of the
-  *block*; camera is fixed; nothing in that chain tilts the image. A roll must be
-  applied to the whole rotation and the result decomposed back into that order —
-  where odd triples like `-31.3, 156.7, -151.6` come from. Anything round (drum
-  head, cymbal) can only be turned by rolling the picture, since spinning about
-  its own axis renders identically.
+- **X is what leans the block in the tile.** Unity applies an Euler triple Z, then
+  X, then Y, and for a block whose face is turned towards the camera it is X's
+  departure from -90 that tips the picture over; Y decides how much of that
+  departure shows as lean, and Z spins the block about its own axis rather than
+  turning the image. Measured on a preview grid, lean from vertical:
+
+  | | `y 0` | `y -20` | `y -45` | `y -70` | `y -90` |
+  | --- | --- | --- | --- | --- | --- |
+  | **`x -90`** | 0° | 0° | 0° | 0° | 0° |
+  | **`x -100`** | 0° | 5° | 10° | 10° | 10° |
+  | **`x -110`** | 1° | 11° | 19° | 20° | 20° |
+  | **`x -120`** | 1° | 18° | 29° | 30° | 30° |
+
+  So **`x = -90` is upright at any turn**, and past `y -45` the lean is simply how
+  far x is from -90. A block standing on a machine reads as upright even though the
+  game's camera draws it leaning, and an icon that leans looks wrong beside the
+  other tiles — so keep x within a few degrees of -90 and get the three-quarter out
+  of y. (An earlier version of this note said the triple could not roll the picture
+  and a later one said Z did; both were wrong, from reasoning rather than
+  measuring.)
+- **Y turns the block on its stand**, and how much of its side shows peaks around
+  `y -45`: at `y -90` the near side has swung far enough round to start hiding
+  again. A few degrees of x buys the top face without a visible lean.
+- Anything round (drum head, cymbal) renders identically however it is spun, so
+  the only knobs on it are the two that move the camera.
 
 `<Icon>` **Scale is measured against the raw model**, not multiplied by `<Mesh>`
 scale above it. Game's own blocks settle it: modelled at 100× size, carry
@@ -579,3 +598,33 @@ block and a vertex light on the terrain behind it.
 Short of handing the `Terrain` a `materialTemplate` of your own — a splatmap
 shader you'd have to write, changing how every level looks — there is nothing a
 mod can do about it.
+
+## Making a block decoration: collider, visibility, mass
+
+A block meant as decoration -- a lamp, a sign, a pane of glass -- usually wants
+three separate things, and they are worth keeping separate because they fail
+separately:
+
+- `Rigidbody.detectCollisions = false` stops it interacting with the world.
+- `VisualController.SetInvisible()` stops it being drawn.
+- `Rigidbody.mass = 0f` stops it hanging weight off the machine.
+
+**A zero mass does not take the block off its joint.** Worth saying because the
+opposite is easy to believe: Unity documents mass as needing to be positive, and
+PhysX reads a zero mass as infinite rather than as nothing, so the theory sounds
+right. Tested in Besiege, the block stays put and a run starts normally.
+
+If a decorative block *does* come off, look at the joint before the mass. A
+modded block that is heavier than its mounting suggests needs its own break force,
+and Besiege's default is not enough:
+
+```csharp
+ConfigurableJoint joint = GetComponent<ConfigurableJoint>();
+joint.breakForce = 16500f;
+joint.breakTorque = 16500f;
+```
+
+Set that unconditionally, at the block's start frame. It is easy to bury it inside
+some other branch -- past an early return for a light that happens to be switched
+off, say -- and then the block snaps off in exactly the configuration nobody
+tested, while holding fine in every other.
