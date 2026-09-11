@@ -60,7 +60,10 @@ public static class Peek
                 foreach (var i in t.Interfaces) Console.WriteLine("  impl " + i.FullName);
                 foreach (FieldDefinition f in t.Fields)
                     Console.WriteLine("  field " + (f.IsPublic ? "public " : "private ") +
-                                      (f.IsStatic ? "static " : "") + f.FieldType.Name + " " + f.Name);
+                                      (f.IsStatic ? "static " : "") + f.FieldType.Name + " " + f.Name +
+                                      // An enum's members and any const: the value is
+                                      // the whole point of looking one of these up.
+                                      (f.HasConstant ? " = " + f.Constant : ""));
                 foreach (PropertyDefinition p in t.Properties)
                     Console.WriteLine("  prop  " + p.PropertyType.Name + " " + p.Name);
                 foreach (MethodDefinition m in t.Methods)

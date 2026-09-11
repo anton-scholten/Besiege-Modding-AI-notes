@@ -26,8 +26,11 @@ foreach (TypeDefinition t in asm.MainModule.Types)
 
 Variants worth having: dump one method's instructions; find every method whose IL
 mentions a string or a member (how "who writes this field?" and "who calls this?" get
-answered); dump an enum's constants (`f.HasConstant`), where the `BlockType` ids come
-from.
+answered).
+
+`sig` prints a field's constant where it has one (`f.HasConstant`), so an enum
+comes out with its values — `./tools/peek.sh sig BlockType` is where the block
+ids come from, and it is faster and less wrong than any list of them.
 
 Run it with the game's own mono against `Assembly-CSharp.dll`. This established
 `DisplayInMapper`, `VisualController`, `ContainerDetails`, the timer's mapper keys,
@@ -162,6 +165,28 @@ than only what it decided:
 The second line diagnosed a bug two rounds of reasoning had failed to. Output goes to
 `Player.log` — on Linux `~/.config/unity3d/Spiderling Games/Besiege/Player.log` — and
 to the in-game console with `show_logs true`.
+
+### Driving the game with nobody at the keyboard
+
+A mod that only loads on level entry (no `<LoadInTitleScreen />`) needs someone to click
+into a level before it can be tested at all. On Linux that someone can be a script:
+
+- **XTest through ctypes** — `libXtst.so.6` and `libX11.so.6` are on any desktop, no
+  package or header needed — moves the pointer, clicks and types into Besiege, including
+  under XWayland on a Wayland desktop. Besiege's collider-based menus answer it like a
+  real mouse, and `Ctrl+K` then typed text runs console commands.
+- **The window must be focused**, or the keys go to whatever is. Besiege's X11 window has
+  **no WM_CLASS** (empty `resourceClass`); match its title, which is exactly `Besiege`. On
+  KDE a KWin script over DBus raises it:
+  `qdbus6 org.kde.KWin /Scripting loadScript focus.js name`, then
+  `qdbus6 org.kde.KWin /Scripting/Script<id> run`, with `workspace.activeWindow = w` for
+  the window whose `caption === "Besiege"`.
+- **The title screen's menu items drift** — the planets orbit — so a click must be placed
+  from a capture taken just before it (`import -window <id>`, find the item by colour) and
+  may need a retry. The static labels (`MODS`, top right) are a reliable way to check input
+  is arriving at all.
+- **Watch `Player.log` for the mod's own "loaded" line** rather than sleeping: level load
+  time varies by tens of seconds.
 
 ## 6. Build checks, and how they quietly stop checking
 

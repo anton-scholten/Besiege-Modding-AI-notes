@@ -178,8 +178,28 @@ MKey::EmulationHeld
 MKey::EmulationValue
 MKey::CheckEmulation
 MKey::UpdateEmulation
+MKey::SplitVariable
+MKey::CombineVariables
+Selectors.KeySelector::MaxKeys
+StatMaster/KeyMapper::MaxDisplayedTags
+StatMaster/KeyMapper::VariableCharLimit
 KeyInputController::Emulate
 KeyInputController::AddMKey
+KeyInputController::CheckLoop
+LogicGate::AKey
+LogicGate::BKey
+LogicGate::ModeMenu
+LogicGate::ToggledInput
+LogicGate::EmulateKey
+LogicGate::Type
+LogicGate::MAX_PULSES
+LogicGate::StartEmulation
+LogicGate::StopEmulation
+LogicGate::EvaluateEmulation
+LogicGate::UpdateBlock
+LogicGate::EmulationUpdateBlock
+LogicGate::SendEmulationUpdateBlock
+ReferenceMaster::onMachinePostSim
 
 # --- 08 the hooks are Start and OnDisable
 Modding.ModBlockBehaviour::OnSimulateStart
@@ -238,6 +258,7 @@ DynamicText::color
 SaveableDataHolder::GetMapperType
 SaveableDataHolder::MapperTypes
 MapperType::Key
+MapperType::XDATA_PREFIX
 MapperType::DisplayInMapper
 BlockMapper::IsDirty
 BlockMapper::RefreshLists
@@ -279,6 +300,18 @@ AdvancedBlockEditor::SetActiveTool
 AddPiece::UpdateMiddleOfObject
 AddPiece::SingleHammerAnimate
 UndoSystem::AddActions
+SaveableDataHolder::MapperTypes
+BlockSelectionTool::RemoveBlocks
+BlockSelectionTool::RemoveSelection
+UndoActionEdit
+MouseOrbit::Update
+AddPiece::Update
+InputManager::CopyKeys
+InputManager::PasteKeys
+InputManager::PanCameraKeyHeld
+UndoSystem::CheckOpenBlockMapper
+AdvancedBlockEditor::CheckShowBlockMapper
+AdvancedBlockEditor::SelectionCount
 StatMaster::Tool
 StatMaster::mergeSurfaceTypesOnDeselect
 StaticSettings::MachinePath
@@ -356,3 +389,7 @@ CommandHandler
 InternalModding.Assemblies.AssemblyScanner
 InternalModding.Common.Serialization::Validate
 InternalModding.Mods.ModInfo
+MouseOrbit::scrl
+MouseOrbit::zoomSmoothDelegate
+StatMaster::DisableCameraZoom
+InputManager::ZoomValue

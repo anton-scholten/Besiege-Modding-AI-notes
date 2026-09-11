@@ -90,6 +90,136 @@ In a save an `MKey` serialises as a `StringArray`: one entry per keycode, then
 optionally `Ignored=True`, `Message=<names joined by ';'>` and `Use=True`
 (`useMessage`, the flag saying listen to the name instead of the keyboard).
 
+## The logic gate block, from the inside
+
+Worth having written down: it is the other block a mod is likely to stand in for,
+and its controls are not guessable.
+
+`LogicGate` registers `activate-A` and `activate-B` (`MKey`, defaults `U` and
+`I`), `Gate` (`MMenu`), `toggle-mode` and `inverted` (`MToggle`), and `emulate`
+(`MKey`). In a save those are `bmt-` plus those names, the same as any block.
+
+`GateType` is, in order: `NOT, AND, OR, NOR, NAND, XOR, XNOR, Random, SRLatch,
+DLatch, Counter, EdgeDetect`. `EvaluateEmulation` is a switch on it:
+
+| gate | what it returns |
+| --- | --- |
+| NOT | `!A` |
+| AND / OR | `A && B` / `A \|\| B` |
+| NAND / NOR | the negations of those |
+| XOR / XNOR | `A != B` / `A == B` |
+| Random, SRLatch, DLatch | `aToggled` -- the state machine in `UpdateState` does the work |
+| Counter | `counter == 0 && lastCount == 3` |
+| EdgeDetect | `aToggled`, and clears it in the same breath |
+
+So the combinational gates are one line each and the other five are all one
+latched flag, set by `UpdateState` from the keys, the toggle-mode switch and (for
+edge detect) `inverted`. `toggle-mode` and `inverted` are never both shown: the
+block's `UpdateHidden` swaps which one the mapper displays with the gate.
+
+### The two passes, and what `UpdateState` is handed
+
+The state machine runs **twice a tick** — once with the keyboard's edges, once with
+the emulated ones — and the answer goes out on a third call. Reproducing a gate
+means reproducing all three, and the arguments are where the mistakes are:
+
+```csharp
+UpdateBlock()                 // once a frame, and only while Time.timeScale > 0
+    aPressed  = aKey.IsPressed;
+    aHeld     = aPressed || aKey.IsHeld;
+    aReleased = gateType == EdgeDetect && !aHeld && aKey.IsReleased;
+    UpdateState(aPressed, bPressed, aHeld || emuAHeld, bHeld || emuBHeld, aReleased);
+
+EmulationUpdateBlock()        // emulation tick, second of the two phases
+    emuAPressed  = aKey.EmulationPressed();
+    emuAHeld     = aKey.EmulationHeld(true);
+    emuAReleased = aKey.EmulationReleased();
+    UpdateState(emuAPressed, emuBPressed, emuAHeld || aHeld, emuBHeld || bHeld,
+                emuAReleased);
+
+SendEmulationUpdateBlock()    // emulation tick, first phase
+    if (EvaluateEmulation()) StartEmulation(); else StopEmulation();
+```
+
+Three things there are easy to get wrong and invisible when you do:
+
+- **a press counts as a hold** — `aHeld = aPressed || IsHeld`, not `IsHeld` alone;
+- **the release is handed over only for the edge detector, and only when the key is
+  not held at all.** A key bound to two codes reports a release while the other is
+  still down, and an edge detector taking that would fire while its input was on;
+- **each pass ORs in the other's held state**, so the gate sees one input whether
+  it arrives from the keyboard or from a variable.
+
+`StartEmulation`/`StopEmulation` guard on an `emulating` flag, so the key is raised
+and dropped exactly once — which is what emulation's reference counting needs.
+
+Because the send phase runs across the whole machine before the read phase (above),
+**a signal takes one emulation tick to cross a gate**: it emits at the start of tick
+N from what it worked out during tick N-1. A chain of gates settles one gate per
+tick, and that is the timing any reproduction has to match.
+
+The block's own controls are public — `LogicGate.AKey`, `BKey`, `ModeMenu`,
+`ToggledInput`, `EmulateKey`, `Type` — even though the fields behind them are
+private. For blocks with no such accessors, walk `SaveableDataHolder.MapperTypes`
+and match on `MapperType.Key`; see
+[12-machines-and-saves.md](12-machines-and-saves.md).
+
+### Burn-out, and the one gate it eats
+
+`burnoutProne` is set by `KeyInputController.CheckLoop(inputs, output, true)`
+(public, reached through `BlockBehaviour.CheckLoop`, re-asked on
+`ReferenceMaster.onMachinePostSim`): true when the gate's own answer can reach its
+own inputs. `inputs` is the gate's `activationKeys`, or just `aKey` for NOT and
+Random, which read no B.
+
+Only a prone gate can burn out. `EmulationUpdateBlock` compares
+`EvaluateEmulation()` with the last tick's answer; each consecutive tick it differs
+counts one, and at `MAX_PULSES` (5) the gate is `burnedOut` — after which
+`SendEmulationUpdateBlock` stops its emulation once and plays the sparks. Any press
+or hold arriving resets the count.
+
+Note what that costs the edge detector: `EvaluateEmulation` **clears** `aToggled` as
+it reads it, and for a prone gate it is called in the read phase for the burn-out
+check as well as in the send phase to emit. The flag set by the read phase is
+consumed by the check in the same phase, so a burnout-prone edge detector never
+emits at all. Read out of the IL rather than measured in game, but worth knowing
+before reproducing one.
+
+### Listing what variables exist
+
+There is no registry to read in the build area. `KeyInputController.usedMessages`
+is filled by `Machine.InitSimBlock` when a run starts and is empty before one, so
+a menu offering "the variables available" has to walk `Machine.BuildingBlocks`,
+scan each block's `MapperTypes` for `MKey`, and collect `key.message` — a
+`string[]`, not a list, and not `CombineVariables` unless you want them joined the
+way a save spells them. Names survive a key being switched back to the keyboard,
+which is a feature: a name typed once is a name the player means to use.
+
+### How many, how long, and how several are combined
+
+One `MKey` holds a `List<KeyCode>` and a `string[]` of names, neither capped in the
+data model — `AddKey` just appends, and a save can carry any number. The limits are
+the mapper's:
+
+| | limit | where |
+| --- | --- | --- |
+| keycodes on one key | **3** | `Selectors.KeySelector.MaxKeys`; the `+` on a key row is hidden once three are bound |
+| variable names on one key | **100** | `StatMaster.KeyMapper.MaxDisplayedTags`; past it the tag editor refuses to split what is typed |
+| length of one name | **32** | `StatMaster.KeyMapper.VariableCharLimit` |
+
+**Separators are `;` and `,` when typing, `;` alone in storage.**
+`Selectors.TagSelector.SEPARATOR_CHARS` is both; `MKey.SplitVariable` reads on `;`
+and `MKey.CombineVariables` writes on `;`. A mod with its own name field should
+split on both and cut to 32, or it will write names the game's own mapper cannot
+edit afterwards.
+
+**Several of either are OR-ed.** `MKey.IsHeld` walks the keycodes and returns on
+the first one held; the names go through the emulation count, so the key is held
+while *any* emulator holds *any* of its names. One consequence worth keeping in
+mind for edge-driven blocks: because it is a count and not a set of flags, a press
+edge is only the nought-to-one transition — two names raised overlapping give one
+press and one release, not two (Trap 2 below).
+
 ### Trap 1: a key with no keycodes is never registered
 
 `Machine.InitSimBlock` files a block's keys with `KeyInputController` from inside
@@ -120,6 +250,30 @@ press at all**, and the key doesn't come up until the last one lets go. Anything
 generating a stream of events onto one name — sequencer, repeated trigger — must
 leave a gap. Sixty milliseconds is comfortably below what a player notices and
 comfortably above a fixed step.
+
+### Trap 2b: a block never drives the keys it hands to `EmulateKeys`
+
+`BlockBehaviour.EmulateKeys(MKey[] own, MKey emulate, bool down)` ends at
+`KeyInputController.Emulate(block, own, emulate, down)`, which walks every key
+registered under the emitted name or keycode and calls `UpdateEmulation` on each —
+**except** the ones in `own`. `EmulateEntry` is the filter, and it compares by
+**reference**:
+
+```csharp
+foreach (MKey k in own) if (k == target) return false;   // skipped
+```
+
+That array is how the game stops a gate driving itself: `LogicGate` passes its own
+`activationKeys` — its A and B and nothing else (just A for NOT and Random, which
+read no B).
+
+**Pass only the keys that would be a genuine self-loop.** A modded block that holds
+several independent parts — rows of a table, each a gate in its own right — must
+pass *that row's* inputs, not the block's. Hand over every key the block owns and
+the game skips them all: nothing inside the block can drive anything else inside
+it, and every wire between two of its own parts is dead the moment the machine
+runs. It looks right in a mapper, converts correctly to real blocks, and does
+nothing in a simulation — the failure is invisible outside a run.
 
 ### Trap 3: `IsReleased` is the one key property that does not check `useMessage`
 

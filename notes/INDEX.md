@@ -20,11 +20,12 @@ bottom.
 - `175` `<LoadInTitleScreen />` decides when the mod's code first runs
 - `186` The blacklist is a namespace prefix test, with carve-outs
 - `265` The compiler is Besiege's own, and it is ancient
-- `297` A short public type name of your own collides three ways
-- `334` Compiled DLL or ScriptAssembly: the difference that matters
-- `371` Module attributes: required unless defaulted
-- `410` `modid` on a module element is optional
-- `435` When a block does not appear
+- `303` A short public type name of your own collides three ways
+- `340` Compiled DLL or ScriptAssembly: the difference that matters
+- `377` Module attributes: required unless defaulted
+- `416` `modid` on a module element is optional
+- `441` When a block does not appear
+- `468` `ModIO` is the mod.io SDK, not Besiege's file helper
 
 ## 02-blocks.md
 
@@ -33,29 +34,32 @@ bottom.
 - `97` The toolbar icon is cached on disk, and nothing invalidates it
 - `115` A generated mesh has to be wound right the first time
 - `139` A block needs `<AddingPoints>`, and `hasAddingPoint="true"` is not a substitute
-- `192` The toolbar icon
-- `239` A mesh may be an outer skin with no inside
-- `247` Colouring part of a block's mesh, without a second material
-- `268` Taking the skin picker off a block
-- `327` A block's visual is not its transform
-- `338` The limits dial's little block is posed by `<LimitsDisplay>` alone
-- `378` How a machine save names a modded block
-- `421` Text in the world draws through everything, until you change its shader
-- `474` `MSlider` does not clamp, but loading does
-- `497` A block that previews itself needs a clock every block shares
-- `519` Values that only some settings can use
-- `532` A lamp block shadows itself, and `shadowNearPlane` is the way out
-- `572` The terrain does not take shadows from a light you add
-- `602` Making a block decoration: collider, visibility, mass
+- `199` The toolbar icon
+- `246` A mesh may be an outer skin with no inside
+- `254` Colouring part of a block's mesh, without a second material
+- `275` Taking the skin picker off a block
+- `334` A block's visual is not its transform
+- `345` The limits dial's little block is posed by `<LimitsDisplay>` alone
+- `385` How a machine save names a modded block
+- `451` Text in the world draws through everything, until you change its shader
+- `504` `MSlider` does not clamp, but loading does
+- `527` A block that previews itself needs a clock every block shares
+- `549` Values that only some settings can use
+- `562` A lamp block shadows itself, and `shadowNearPlane` is the way out
+- `602` The terrain does not take shadows from a light you add
+- `632` Making a block decoration: collider, visibility, mass
+- `664` `detectCollisions = false` makes a block nothing can be built on
+- `702` Bisect a block fault with an empty block
 
 ## 03-keys-and-automation.md
 
 - `3` `MKey` carries the whole automation feature
 - `12` Reading an emulated key
 - `82` Variables are keys with names
-- `167` The timer block
-- `189` `MSlider.Value` does not clamp, and `Min`/`Max` are settable
-- `205` Hiding a block's controls from Besiege's mapper
+- `93` The logic gate block, from the inside
+- `321` The timer block
+- `343` `MSlider.Value` does not clamp, and `Min`/`Max` are settable
+- `359` Hiding a block's controls from Besiege's mapper
 
 ## 04-ui-factory.md
 
@@ -72,24 +76,24 @@ bottom.
 - `377` Depend on it softly
 - `409` If you build a text field by hand
 - `434` Committing a setting is not the same as setting it
-- `442` Rebuild or rebind, but write every caption every time
-- `475` Do not churn `DisplayInMapper`
-- `490` The `Window` prefab's Viewport masks nothing until you size it
-- `532` Hover swell does not ask whether the control works
-- `546` The wheel over your panel also zooms the camera
-- `566` `Scrollbar` is one of Besiege's own type names
-- `575` The Bridge components, in full
-- `593` Any part of a window can be a drag handle
-- `612` Keep your canvas below `sortingOrder` 30000
-- `619` Own the window's anchors before remembering where it is
-- `633` You cannot colour a UI Factory graphic; put one of your own in front of it
-- `653` A button inside a button works; a heading that fits its own button is the work
-- `667` Whether a prefab's label is the prefab
-- `676` UI Factory has no colour picker, and Besiege's is out of reach
-- `706` Borrowing a prefab's own corners
-- `718` What is in UI Factory's sprite bundle cannot be listed
-- `731` Committing a typed value
-- `747` The house style: how a selector and a toggle are built
+- `463` Rebuild or rebind, but write every caption every time
+- `496` Do not churn `DisplayInMapper`
+- `511` The `Window` prefab's Viewport masks nothing until you size it
+- `553` Hover swell does not ask whether the control works
+- `567` The wheel over your panel also zooms the camera
+- `587` `Scrollbar` is one of Besiege's own type names
+- `596` The Bridge components, in full
+- `614` Any part of a window can be a drag handle
+- `633` Keep your canvas below `sortingOrder` 30000
+- `640` Own the window's anchors before remembering where it is
+- `654` You cannot colour a UI Factory graphic; put one of your own in front of it
+- `674` A button inside a button works; a heading that fits its own button is the work
+- `688` Whether a prefab's label is the prefab
+- `697` UI Factory has no colour picker, and Besiege's is out of reach
+- `727` Borrowing a prefab's own corners
+- `739` What is in UI Factory's sprite bundle cannot be listed
+- `752` Committing a typed value
+- `768` The house style: how a selector and a toggle are built
 
 ## 05-docking-a-window.md
 
@@ -108,12 +112,12 @@ bottom.
 ## 06-reading-the-game.md
 
 - `7` 1. Mono.Cecil against the game's assemblies
-- `77` 2. A throwaway compile
-- `97` 3. Strings and asset files
-- `131` 4. Taking art and audio out of the game
-- `151` 5. Make the mod tell you
-- `166` 6. Build checks, and how they quietly stop checking
-- `190` Things that bit, or nearly did
+- `80` 2. A throwaway compile
+- `100` 3. Strings and asset files
+- `134` 4. Taking art and audio out of the game
+- `154` 5. Make the mod tell you
+- `191` 6. Build checks, and how they quietly stop checking
+- `215` Things that bit, or nearly did
 
 ## 07-audio.md
 
@@ -137,12 +141,16 @@ bottom.
 
 ## 09-overlay-ui.md
 
-- `8` Use uGUI, not `OnGUI`
-- `38` A canvas over Besiege's UI does not stop it being clicked
-- `82` Two transparent Images that overlap composite darker
-- `102` Rich text is lowercase-only, and Besiege's captions are not
-- `114` Read the player's real keybindings, do not print the defaults
-- `123` Scene names tell you where the player is
+- `8` Tab hides the game's interface, and yours is part of it
+- `24` Use uGUI, not `OnGUI`
+- `54` A canvas over Besiege's UI does not stop it being clicked
+- `115` A click goes to the first handler at or above what it hit
+- `167` What `StatMaster.inMenu` actually turns off, and what it doesn't
+- `209` Two transparent Images that overlap composite darker
+- `229` Rich text is lowercase-only, and Besiege's captions are not
+- `241` Read the player's real keybindings, do not print the defaults
+- `250` A mod key's default may collide with the game's, and nothing will say so
+- `270` Scene names tell you where the player is
 
 ## 10-resources-and-publishing.md
 
@@ -176,7 +184,10 @@ bottom.
 - `116` Some blocks are several blocks
 - `150` Loading a machine from a mod
 - `163` Adding blocks to the machine, as a selection the player can move
-- `207` Writing a `.bsg`: `XmlSaver.Save` is forbidden
+- `207` One undo step for an edit that touches several controls
+- `243` Reading another block's settings, and taking it off the machine
+- `291` An undo closes the block mapper, and your panel with it
+- `334` Writing a `.bsg`: `XmlSaver.Save` is forbidden
 
 ## 13-drawing-over-the-machine.md
 
@@ -238,6 +249,19 @@ bottom.
 - `125` Players
 - `145` `StatMaster` says which side you are on
 
+## 20-rendering-and-cameras.md
+
+- `7` Drawing to the window after `WaitForEndOfFrame` does nothing
+- `47` `Camera.Render` on the game's own cameras, then put them back
+- `66` The title screen is all orthographic
+- `82` Squeezing the game into part of the window
+- `96` Finding Besiege's menus on screen
+- `126` Steering the game's mouse picking without moving the mouse
+- `151` A camera rendering to a texture gets no mouse events
+- `171` The player pauses when its window loses focus
+- `181` `UnityWebRequest` polling a local process keeps up with the frame rate
+- `197` Checked
+
 # Symbol map
 
 Which note names a thing. Notes by number; open section index above, then note.
@@ -272,6 +296,10 @@ Which note names a thing. Notes by number; open section index above, then note.
 | `Physics.gravity`, global state restore | 08, 15 |
 | `Camera.eventMask`, `IsPointerOverGameObject` | 06, 09 |
 | own canvas, `sortingOrder`, `OnGUI` | 09 |
+| `Camera.Render`, `RenderTexture`, `OnPostRender`, `WaitForEndOfFrame` | 20 |
+| camera `rect`, `ScreenSpaceCamera`, title-screen cameras | 20 |
+| `Application.runInBackground`, `UnityWebRequest` polling | 01, 20 |
+| `foreach` over `Dictionary.Values` compiler error | 01 |
 | `<Resources>`, `ModResource`, Workshop upload | 10, 18 |
 | `AssetBundle`, shader per graphics API | 01, 12, 18 |
 | `FileBrowserSlot`, `SimpleUIButton`, load screen | 06, 11 |

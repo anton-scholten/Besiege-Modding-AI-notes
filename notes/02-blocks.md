@@ -180,6 +180,13 @@ The five points every stock and modded block uses, putting a block on the same
 </AddingPoints>
 ```
 
+**Give the adding points stickiness too**, or nothing joins to them. With
+`<Stickiness enabled="false" radius="0"/>` on the points, a block placed on one
+sits exactly where it should and is jointed to nothing: the machine looks right in
+the build menu and falls apart on the first frame of a run. `enabled="true"
+radius="1"`, the same as the base point, is what makes the connection physical.
+The snippet above is the geometry, not a working set of stickiness values.
+
 **`hasAddingPoint="false"` does not stop the block attaching to a parent.**
 Separate mechanism — the `TriggerForJoint` child and the block's
 `ConfigurableJoint`, which `SetupAddingPoints` drives from `BasePoint.Sticky` and
@@ -414,9 +421,32 @@ Blocks in a save need **not** be connected to anything. Besiege loads them where
 put; unattached ones fall when simulation starts — fine for anything whose job
 isn't structural.
 
+**A pin inside each one stops the falling.** `BlockType.Pin` = **57**. Write one
+at the *same* position and rotation as the block it should hold:
+`PinBlockKinematic` overlap-tests for what is near it and, with `pin-all-hit`
+off, takes the nearest — which at no distance at all is the block it is inside.
+So a generated field of hundreds of unconnected blocks can be made to stand
+where it was laid out, at the cost of one block apiece. Its controls, from
+`PinBlockController.Awake`:
+
+| Key | Type | In a save | Notes |
+| --- | --- | --- | --- |
+| `unpin` | `MKey` | `bmt-unpin` | default `KeyCode.P`; releases the pin |
+| `hide-visual` | `MToggle` | `bmt-hide-visual` | default false |
+| `pin-all-hit` | `MToggle` | `bmt-pin-all-hit` | default false; `DisplayInMapper` is set from the static `PinBlockController.ShowPinAll` |
+
+**Write `unpin` as an empty `XStringArray` for a pin nothing can release.**
+`MKey.DeSerialize` clears its keycodes, sets `ignored = false`, `message = [""]`
+and `useMessage = false` before walking the array, so an array with nothing in it
+leaves a key bound to nothing — which is exactly what a cleared binding is, and
+what stops a stray keypress letting a generated machine go. (Contrast a key
+driven by a variable, which needs a keycode present to be counted — see
+[03](03-keys-and-automation.md).)
+
 Vanilla block ids come from `BlockType` enum — `StartingBlock` 0, `Ballast` 35,
-`Log` 63, `Sensor` 65, **`Timer` 66**, `Altimeter` 67, `LogicGate` 68, etc. Dump
-it rather than trusting a list (see [06-reading-the-game.md](06-reading-the-game.md)).
+**`Pin` 57**, `Log` 63, `Sensor` 65, **`Timer` 66**, `Altimeter` 67, `LogicGate`
+68, etc. Dump it rather than trusting a list: `./tools/peek.sh sig BlockType`
+prints each member with its value.
 
 ## Text in the world draws through everything, until you change its shader
 
@@ -605,7 +635,9 @@ A block meant as decoration -- a lamp, a sign, a pane of glass -- usually wants
 three separate things, and they are worth keeping separate because they fail
 separately:
 
-- `Rigidbody.detectCollisions = false` stops it interacting with the world.
+- `Rigidbody.detectCollisions = false` stops it interacting with the world -- but
+  read the section below before switching it off in `SafeAwake`, which costs the
+  block every joint anything tries to make to it.
 - `VisualController.SetInvisible()` stops it being drawn.
 - `Rigidbody.mass = 0f` stops it hanging weight off the machine.
 
@@ -628,3 +660,58 @@ Set that unconditionally, at the block's start frame. It is easy to bury it insi
 some other branch -- past an early return for a light that happens to be switched
 off, say -- and then the block snaps off in exactly the configuration nobody
 tested, while holding fine in every other.
+
+## `detectCollisions = false` makes a block nothing can be built on
+
+Besiege builds a machine's joints at the start of a run by having each block detect
+what it is resting on. A `Rigidbody` with `detectCollisions` false takes no part in
+that, so a block that switches its collisions off early is a block **nothing can be
+jointed to**. It is not a weak joint or a misconnected one: no joint is attempted
+at all.
+
+The trap is that it looks nothing like a physics problem from either side:
+
+- The block still **attaches to its own parent** perfectly well -- that joint is the
+  parent's to make, and the parent still has its collisions.
+- A block placed **on** it still snaps to the adding point and sits exactly where it
+  should. Placement uses the adding-point triggers, which are untouched.
+- So the machine looks right in the build menu and comes apart on the first frame
+  of a run, with the loose blocks still visually in place.
+- Switch collisions back on a few frames into the run -- at the block's own start
+  frame, say -- and every runtime dump you take afterwards looks perfectly normal.
+  The damage was done before the first one.
+
+What the child block reports, if you go looking: `parentBlock` NONE, `isParented`
+false, `iJointTo` empty, `blockJoint` null, no `ConfigurableJoint` component. Note
+that `parentBlock` reads NONE on healthy blocks too, so it proves nothing on its
+own; `iJointTo` and `blockJoint` are the fields that separate a jointed block from
+a loose one.
+
+The reason to switch collisions off in the first place is real: a block clipping
+into yours collides with it for a single frame at the start of a run, even with its
+collider switched off, because the startup work that disables it runs in `Update`
+and a physics tick lands first. Doing it in `SafeAwake` beats the tick -- and costs
+every joint. Weigh the two:
+
+- **A block anything might be built on: never.** The one-frame shove is much the
+  smaller fault.
+- **A block nothing is ever built on** -- a sign, a decal, a decoration routinely
+  placed overlapping the machine it labels -- can take the trade. The joints it
+  gives up are joints nobody wanted.
+
+## Bisect a block fault with an empty block
+
+When one of your blocks misbehaves and a stock block does not, the fastest way
+through is a **control block**: same mod, same loader, an XML copied from a modded
+block that works, a module with no settings, and a behaviour class that is
+literally empty. No skin hiding, no collider edits, no layer changes, no physics.
+
+If the control works and yours does not, the fault is in your block's own XML or
+its behaviour, and you can bisect from there. If neither works, it is the mod or
+the loader and nothing about the block matters.
+
+This is worth reaching for early. Reasoning from decompiled loader code about
+colliders, layers, stickiness, adding-point geometry and trigger placement can
+occupy a great many attempts and rule out nothing, because every one of those
+theories predicts the same symptom. An empty block answers the only question that
+splits the space, in one run.

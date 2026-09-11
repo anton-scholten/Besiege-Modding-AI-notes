@@ -204,6 +204,133 @@ Worth knowing:
 - `LoadAdditive` also drops the first block when the machine data says
   `SavedWithoutStartingBlock`; blocks a mod invents have no starting block to drop.
 
+## One undo step for an edit that touches several controls
+
+`BlockMapper.OnEditField` files one undo action per control (see
+[04-ui-factory.md](04-ui-factory.md)), so a mod window whose one gesture moves a
+node, renames a wire and rebinds two keys costs four presses of undo and comes back
+a piece at a time. Two ways to file it as one:
+
+- `UndoSystem.AddActions(List<UndoAction>)` wraps anything longer than one entry in
+  a `MultiUndoAction`, which undoes as a single step;
+- `UndoSystem.EditBlock(BlockInfo after, BlockInfo before)` files one
+  `UndoActionEdit`, whose undo is `block.OnLoad(before.BlockData)` — the block's
+  **entire** mapper state, every control at once. For a window that edits many
+  controls of one block this is the simpler of the two, and it restores things the
+  window never touched as a bonus rather than a bug.
+
+```csharp
+XDataHolder ignored = new XDataHolder();
+block.OnSave(ignored);                       // see below
+BlockInfo before = BlockInfo.FromBlockBehaviour(block);
+... write MapperType.Value, then ApplyValue() on each ...
+block.OnSave(ignored);
+BlockInfo after = BlockInfo.FromBlockBehaviour(block);
+Machine.Active().UndoSystem.EditBlock(after, before);
+```
+
+**`BlockInfo.FromBlockBehaviour` does not serialise the block if it has saved
+before.** It clones `SaveableDataHolder.LastState` whenever `hasLastState` is set,
+and that flag is set by the first `OnSave` or `OnLoad` the block ever sees. So a
+snapshot taken without calling `OnSave` first is whatever the block last happened to
+write — silently a few edits stale. Call `block.OnSave(new XDataHolder())` before
+each snapshot; it costs a serialise and is what makes the pair honest.
+
+Do this **instead of** `OnEditField`, not beside it, or the edit is filed twice —
+but keep `OnEditField` for the multiplayer path, where the network handler is the
+only thing that sends the change to the other players.
+
+## Reading another block's settings, and taking it off the machine
+
+Two things a mod that imports from the machine needs, both public, neither obvious.
+
+**Read the settings off the live mapper controls, not out of a save.** A built-in
+block keeps its `MKey`s and `MMenu`s in **private** fields — `LogicGate` has
+`aKey`, `bKey`, `modeMenu`, `emulateKey`, `toggledInput`, `inverted`, all private —
+but `SaveableDataHolder.MapperTypes` is a public `List<MapperType>` and every entry
+carries the name its block registered it under:
+
+```csharp
+foreach (MapperType m in block.MapperTypes)
+    if (m.Key == "activate-A") { MKey a = m as MKey; ... }
+```
+
+**`MapperType.Key` is the bare name, not the `bmt-` one.** `LogicGate.Awake`
+registers `activate-A`, `activate-B`, `Gate`, `toggle-mode`, `inverted`, `emulate`;
+`bmt-` is `MapperType.XDATA_PREFIX`, and it goes on only when the value is written
+to a save. Search the live controls with the save's spelling and every lookup
+silently returns null — which reads, in a mod, as a block whose settings cannot be
+read at all. Compare against `MapperType.XDATA_PREFIX + m.Key` if your own constants
+are in the save's form.
+
+That is the whole of it: no reflection, no `OnSave` round-trip, no parsing of the
+`XStringArray` a key serialises to — and the objects you get back are the same
+`MKey`/`MMenu`/`MToggle` your own block's controls are, so the same helpers work on
+both. (`BlockBehaviour.OnSave` into an `XDataHolder` is the fallback if you ever
+need a block's state as data rather than as controls.)
+
+**`BlockSelectionTool.RemoveBlocks(List<BlockBehaviour>, bool)` is public**, takes
+any list rather than the current selection, deletes the way the delete key does —
+joints and all — and **returns its `List<UndoAction>` instead of filing it**.
+`RemoveSelection` is the thin wrapper that runs it on the selection and files the
+result. Getting the actions back is what lets a removal and your own edit undo
+together:
+
+```csharp
+BlockInfo before = ...;                          // your block, before
+// ... change your block's controls, ApplyValue each ...
+List<UndoAction> undo = picker.RemoveBlocks(taken, true);
+undo.Add(new UndoActionEdit(machine, after, before));   // public ctor: machine, after, before
+machine.UndoSystem.AddActions(undo);             // >1 becomes one MultiUndoAction
+```
+
+Check `AdvancedBlockEditor.Instance.selectionController` is there **before** you
+start, not after: a run that reads blocks into your own state and then cannot
+remove them leaves the machine holding both.
+
+## An undo closes the block mapper, and your panel with it
+
+`UndoSystem.Undo` and `Redo` both end with `CheckOpenBlockMapper`, which calls
+`AdvancedBlockEditor.CheckShowBlockMapper()`. With the Modify tool up that method is:
+
+```
+if (SelectionCount > 0)  BlockMapper.Open(selectionController.LastBlock);
+else                     BlockMapper.Close();
+```
+
+Clicking a block to open its mapper does **not** put that block in
+`BlockSelectionTool`'s selection, so the usual case — one block's menu open, nothing
+selected — takes the `else`, and **every undo closes the mapper**. A window that shows
+itself on `onMapperOpen` and hides on `onMapperClose` therefore vanishes when the
+player presses undo, for an edit that only changed one of its own values. The other
+branch is no gentler: `BlockMapper.Open` begins with `Close(true)`, so the reopen fires
+`onMapperClose` too.
+
+`UndoAction.ApplyInfo` also calls `SetActiveTool(StatMaster.Tool.Modify, false)` and,
+if the mapper is on some *other* block, opens it on the block being restored.
+
+If your window is not really part of the mapper — a floating editor, say — hold a flag
+across your own call to `Undo`, ignore the close while it is set, and put the menu back
+afterwards with the game's own call:
+
+```csharp
+stepping = true;
+try
+{
+    machine.UndoSystem.Undo();
+    // Nothing else claimed it: the step closed the menu, so open it again.
+    if (BlockMapper.CurrentInstance == null || !BlockMapper.IsOpen)
+    {
+        BlockMapper.Open(block);     // BlockBehaviour is a SaveableDataHolder
+    }
+}
+finally { stepping = false; }
+```
+
+Check `IsOpen` before reopening rather than reopening blindly: an undo made with
+several blocks selected legitimately puts the mapper on the selection's last block, and
+dragging it back to yours is fighting the player.
+
 ## Writing a `.bsg`: `XmlSaver.Save` is forbidden
 
 Saving isn't symmetrical with loading. **`XmlSaver.Save` is one of the four methods the

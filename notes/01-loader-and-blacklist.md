@@ -284,7 +284,13 @@ It is **C# 4**, and old:
   Symptom = baffling error against `Assembly-CSharp.dll` — "Type `Slider' does
   not contain a definition for `value'";
 - never name a member same as its own type; compiler resolves the member then
-  fails to find the type.
+  fails to find the type;
+- **`foreach` over `Dictionary<K,V>.Values` is an internal compiler error** —
+  `CS0584: Unexpected error when loading type
+  System.Collections.Generic.Dictionary<TKey,TValue>.ValueCollection.Enumerator`.
+  Reads like a broken reference, isn't. Keep a `List<V>` beside the dictionary and
+  walk that. (`foreach` over a `List<T>`, `HashSet<T>` lookups and
+  `TryGetValue` all fine.)
 
 Second instance of same shadowing hazard, easier to hit and harder to read:
 Besiege bundles the **mod.io SDK**, occupying a global `ModIO` namespace
@@ -458,3 +464,15 @@ attribute!` — never the mod, so grepping your mod name returns nothing and rea
 exactly like a mod never loaded. That mistake cost one session an entire wrong
 diagnosis: log had all nine errors in it the whole time. `-a` matters too — log
 picks up bytes making grep treat it as binary.
+
+## `ModIO` is the mod.io SDK, not Besiege's file helper
+
+Besiege ships the mod.io Unity SDK, whose root namespace is `ModIO`. So a bare
+`ModIO.WriteAllText(...)` does not compile: the name resolves to that namespace
+and the compiler reports "The type or namespace name `WriteAllText' does not
+exist in the namespace `ModIO'". Write `Modding.ModIO.WriteAllText(...)`.
+
+Same shape as `Scrollbar`, which is one of Besiege's own type names and shadows
+`UnityEngine.UI.Scrollbar`. When a familiar name will not resolve, suspect a
+collision with something the game or one of its bundled SDKs already defines
+before suspecting a missing reference.

@@ -439,6 +439,27 @@ heard now and forgotten on save. `BlockMapper.OnEditField` reconciles them —
 reserialising the block and adding an undo entry, which isn't free. Write live on
 every drag frame, commit once, when the mouse comes up.
 
+What `OnEditField(SaveableDataHolder, MapperType)` does, in order, is worth knowing
+before leaning on it:
+
+- if `EditFieldHandler.Instance` exists it hands the whole job over and returns.
+  That is the multiplayer path — bypass `OnEditField` and your edit is local only.
+  `EditFieldHandler.Instance != null` is the test for "somebody else is listening".
+  Note that the handover is unconditional and the base `EditFieldHandler.OnEditField`
+  is an **empty method** — `NetworkEditFieldHandler` is what implements it — so a
+  plain `EditFieldHandler` left in the scene would turn every `OnEditField` in the
+  game into a silent no-op. Never instantiate one;
+- otherwise it applies the field **to every block in the current machine
+  selection**, not only to the one passed in. Selecting three of your blocks and
+  typing in your own panel writes all three, which is Besiege's behaviour for its
+  own mapper and surprising in a panel that draws one block;
+- the undo entry's "before" value is `GetLoadData(key)` — the last *committed*
+  value, not the live one — so committing after assigning `Value` is right, and
+  committing twice for one edit records the second as a no-op;
+- one entry per call. A single edit that touches four controls is four presses of
+  undo, each putting one control back. See
+  [12-machines-and-saves.md](12-machines-and-saves.md) for filing the lot as one.
+
 ## Rebuild or rebind, but write every caption every time
 
 If you keep one window and reuse it for the next block with the same *shape* — same
