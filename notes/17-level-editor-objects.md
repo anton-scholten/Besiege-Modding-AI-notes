@@ -27,35 +27,33 @@ public override void OnEntityPrefabCreation(int entityId, GameObject prefab)
 }
 ```
 
-### `<ID>` is a bare integer in a namespace every mod shares
+### The hook reaches only the mod that owns the entity
 
-The hook fires on **every loaded mod's entry point for every entity in the game**,
-and the only thing a mod has to filter on is that integer. So two mods that both
-number an entity `1` decorate each other's objects, silently and both ways.
+`OnEntityPrefabCreation` is **not** broadcast. `EntityLoader.CreatePrefab` calls
+`entity.Info.Mod.OnEntityPrefabCreation(localId, prefab)` — the owning `ModContainer` —
+and `ModContainer.OnEntityPrefabCreation` runs it only on that mod's own
+`ModEntryPoint`s. Entity ids are checked for duplicates **within one mod**
+(`EntityLoader.LoadMod`: "Multiple entities with the same ID"), and `ModIds` numbers them
+globally from `(mod guid, local id)`, like blocks. So two mods numbering an entity `1` do
+not collide, and a bare integer filter such as `if (entityId != MyEntityId) return;` is
+enough.
 
-Measured: a sand region with `<ID>1</ID>` came out of the palette wearing another
-mod's spotlight beam and lens, because that mod's hook is
-
-```csharp
-if (entityId != SpotLightEntityId) return;   // SpotLightEntityId == 1
-SpotLightEntity.Beam(prefab);
-SpotLightEntity.Lens(prefab);
-```
-
-and the sand mod was attaching its own component to that mod's light in return.
-Neither mod is wrong on its own; the id space is simply shared and nothing says so.
-Unlike a *block* id, which Besiege namespaces by writing the prefab's name as
-`<mod guid>-<local id>` (see [02-blocks.md](02-blocks.md)), an entity id reaches the
-hook with nothing attached to it.
-
-Two things follow. **Do not number entities from 1.** Pick a range nothing else is
-likely to use and keep it, since the id is as immutable as a block's once a level
-has been saved with it. And **log the id and prefab name** the first time the hook
-runs, so the next collision is a line in `Player.log` rather than a mystery lens:
+**This section used to say the opposite.** It claimed the hook fires on every loaded
+mod's entry point and that a sand region with `<ID>1</ID>` picked up another mod's
+spotlight beam and lens because of it, and advised never numbering entities from 1.
+Wrong: nothing in the loader delivers one mod's entity to another. The claim was an
+explanation fitted to a real symptom — another mod's settings turning up on the
+mod's objects — whose actual cause was the stale `BlockPrefab.ID` described under
+`<LoadInTitleScreen />` in [01-loader-and-blacklist.md](01-loader-and-blacklist.md). It
+was not shown to apply to the entity case; if an entity of yours ever wears another
+mod's components, do not assume id collision — log what is on the prefab first:
 
 ```csharp
 Debug.Log("[Mod] entity prefab " + entityId + " '" + prefab.name + "'");
 ```
+
+and note which `OnEntityPrefabCreation` callers exist in the mods involved. Changing an
+entity id after a level has been saved with it still breaks that level, as for a block.
 
 From there it's an ordinary Unity component: `Awake`, `Start`, `Update`, `OnDestroy`.
 **None of the block lifecycle applies** — no `SafeAwake`, no `SimulateUpdateAlways`, no

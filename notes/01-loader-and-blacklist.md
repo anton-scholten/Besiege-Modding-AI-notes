@@ -222,6 +222,57 @@ not just the mod. Mods never unload once loaded, so mod without flag is still
 present on main menu after first level — for anything not specifically about the
 title screen, same result at none of the risk.
 
+### A second cost: your blocks can turn into another mod's blocks
+
+**Symptom.** A block of yours, placed in the editor, shows another mod's mapper — its
+sliders, its keys — and runs that mod's behaviour. Loading a mod that sorts earlier in GUID order is what
+starts it; yours becomes one of that mod's blocks. Seen
+with a sprayer block that became SpecialEffects' spotlight, and with another that
+became a piano from the Music mod. Looks like two mods fighting over a module name or an
+id. Neither is what it is.
+
+**Cause, read from the game's IL.**
+
+- `InternalModding.Loading.ModIds.AssignIds` numbers every loaded mod's blocks from
+  `ModManager.BlockIdStart`, sorted by **mod GUID, then local id**
+  (`<AssignIds>m__DB` is `Guid.CompareTo`). A block's effective id therefore depends on
+  which other mods are loaded — inserting a mod with a smaller GUID pushes every larger
+  GUID's blocks up.
+- `BlockPrefabCreator.SetupBehaviour` copies that id into `BlockPrefab.ID` **once**, when
+  the prefab is built. `AssignIds` later re-numbers `ModdedBlock.Id` but, for blocks,
+  does not touch the prefab. (For entities it does: it rewrites `LevelPrefab.ID`. So the
+  gap is specific to blocks.)
+- Placing a block runs `ModBlockBehaviourHandler.Awake`, which does
+  `moddedBlock = ModIds.GetBlockByEffectiveId(Prefab.ID)` and builds the block's
+  modules and behaviours from **that** `ModdedBlock`. A stale `Prefab.ID` names whoever
+  now holds the slot.
+
+**How the flag triggers it.** With `<LoadInTitleScreen />` the prefab is built during
+startup, numbered against the title-screen mods only. Mods without the flag join later,
+`AssignIds` runs again, and any that sort before you shift your real id while your
+prefab keeps the old one. Mods loaded in the same early batch are numbered together and
+cause nothing. So the mods that hit you are exactly: GUID smaller than yours, no
+`LoadInTitleScreen`. Checked against the installed set: SpecialEffects (`876e…`) and
+Music (`aca7…`) both sort before a mod with GUID `e847…` and neither has the flag.
+
+**Fix.** Drop `<LoadInTitleScreen />` unless the mod is really about the title screen,
+so it is numbered with everyone else. Confirmed in game: the sprayer kept its own
+mapper once the flag was removed.
+
+**If you need the flag anyway,** this is untested: nothing stops a mod re-deriving the
+id itself, since the prefab object is named `<mod guid>-<local id>` (see
+[02-blocks.md](02-blocks.md), "Finding your own block's id at runtime") and
+`ModIds.GetEffectiveBlockId(modGuid, localId)` returns the current id — but whether
+rewriting `BlockPrefab.ID` after the fact is safe for the rest of the loader was not
+checked.
+
+**How it was found, for the next one.** Not from the symptom and not from reasoning
+about module names: `CustomModules.DeserializeBlockModules` resolves the element
+correctly, which ruled out the module table. The fault only showed once
+`ModBlockBehaviourHandler.Awake` was read to see *where* a placed block gets its module
+list from. Disassemble with the Mono.Cecil route in
+[06-reading-the-game.md](06-reading-the-game.md).
+
 ## The blacklist is a namespace prefix test, with carve-outs
 
 `InternalModding.Assemblies.AssemblyScanner` refuses assembly referencing any of

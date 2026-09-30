@@ -11,6 +11,10 @@ deprecated and unrelated).
 
 Notes terse on purpose: articles and filler dropped, code and API names exact.
 
+**Read [notes/00-dangers.md](notes/00-dangers.md) first.** One-line list of what in these
+notes costs the most when missed — silent failures, forbidden references, global state,
+identity and save breakage — each pointing at the section holding the evidence.
+
 **Do not read whole set.** [notes/INDEX.md](notes/INDEX.md) lists every section of
 every note with line number, plus symbol → note map. Look symbol up, read that
 section:
@@ -33,7 +37,10 @@ when a later mod took it at face value and nearly deleted working code. 01 said 
 needs `modid` on its module element; it does not — loader resolves element without one
 against mod owning the file, and claim inherited from wrong diagnosis of a real bug
 whose cause was elsewhere. Where a note records correction it says so and shows IL
-that settles it. Treat confident phrasing as strong prior, not proof — and when a note
+that settles it. A third: 17 said the entity hook fires on every mod for every entity, so two mods
+numbering an entity `1` collide. The loader calls it on the owning mod only; the real
+cause of the symptom it explained was a stale block id (01, `<LoadInTitleScreen />`).
+Treat confident phrasing as strong prior, not proof — and when a note
 would have you delete something, verify first.
 
 **Plausible cause is not the cause.** Both corrections above began as confident story

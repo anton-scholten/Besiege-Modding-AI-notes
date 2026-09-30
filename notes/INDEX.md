@@ -12,6 +12,17 @@ grep -rn 'DisplayInMapper' notes/                     # which notes name a symbo
 Regenerate after editing a note: `./tools/index.sh`. Symbol map hand-kept, lives at
 bottom.
 
+## 00-dangers.md
+
+- `10` The mod will not load, or the build lies
+- `31` A block or module does not appear, or appears as something else
+- `57` Saves and identity
+- `67` Lifecycle and global state
+- `86` Input and UI
+- `103` Rendering, physics, audio
+- `120` Publishing
+- `127` Working method
+
 ## 01-loader-and-blacklist.md
 
 - `3` Mod layout
@@ -19,14 +30,14 @@ bottom.
 - `80` Where a mod may write
 - `178` Asking whether another mod is installed
 - `214` `<LoadInTitleScreen />` decides when the mod's code first runs
-- `225` The blacklist is a namespace prefix test, with carve-outs
-- `304` The compiler is Besiege's own, and it is ancient
-- `342` A short public type name of your own collides three ways
-- `379` Compiled DLL or ScriptAssembly: the difference that matters
-- `416` Module attributes: required unless defaulted
-- `455` `modid` on a module element is optional
-- `480` When a block does not appear
-- `507` `ModIO` is the mod.io SDK, not Besiege's file helper
+- `276` The blacklist is a namespace prefix test, with carve-outs
+- `355` The compiler is Besiege's own, and it is ancient
+- `393` A short public type name of your own collides three ways
+- `430` Compiled DLL or ScriptAssembly: the difference that matters
+- `467` Module attributes: required unless defaulted
+- `506` `modid` on a module element is optional
+- `531` When a block does not appear
+- `558` `ModIO` is the mod.io SDK, not Besiege's file helper
 
 ## 02-blocks.md
 
@@ -235,11 +246,11 @@ bottom.
 ## 17-level-editor-objects.md
 
 - `12` There is exactly one hook, and it fires on the prefab
-- `71` The SETTINGS tab takes the same controls a block's mapper does
-- `123` Level variables are the way a level drives one object
-- `159` A modded event gets a much poorer set of controls
-- `170` Entity XML notes
-- `183` Checked
+- `69` The SETTINGS tab takes the same controls a block's mapper does
+- `121` Level variables are the way a level drives one object
+- `157` A modded event gets a much poorer set of controls
+- `168` Entity XML notes
+- `181` Checked
 
 ## 18-vendoring-unity-code.md
 
@@ -294,6 +305,8 @@ Which note names a thing. Notes by number; open section index above, then note.
 | global type names, `Slider`/`Scrollbar`/`Keys`/`Convert` collisions | 01, 04 |
 | `[DefaultValue]`, module attributes | 01, 06 |
 | `Mod.xml`, `<ID>`, required elements | 01, 10 |
+| `<LoadInTitleScreen />`, `ModIds.AssignIds`, `BlockPrefab.ID`, block taking another mod's mapper | 01, 02 |
+| `OnEntityPrefabCreation`, entity id scope | 17 |
 | `Modding.Mods`, is another mod installed, `requiredMods` | 01 |
 | `BlockPrefab`, `PrefabMaster`, block ids | 02, 03, 13 |
 | `BlockTypeIconCreator`, toolbar icon cache | 02 |
