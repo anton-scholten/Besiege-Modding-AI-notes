@@ -90,6 +90,30 @@ In a save an `MKey` serialises as a `StringArray`: one entry per keycode, then
 optionally `Ignored=True`, `Message=<names joined by ';'>` and `Use=True`
 (`useMessage`, the flag saying listen to the name instead of the keyboard).
 
+## A binding set in code needs `ApplyValue`, or it falls back
+
+Every `MapperType` holds its value twice. On `MKey`: the live `_keyCodes`, `message`,
+`useMessage`, and a load copy `_loadKeyCodes`, `_loadMessage`, `_loadUseMessage`.
+`ApplyValue` copies live into load; `ResetValue` copies load back over live. The
+constructor fills both; writing the public fields afterwards fills only the live one.
+
+The load copy is what the game treats as committed. `SaveableDataHolder.GetLoadData`
+serialises it (`SerializeLoadValue`) for `BlockMapper.EditField`, `OnEditField` and
+`UpdateBlockData`, and on a multiplayer client `NetworkEditFieldHandler.OnCloseMapper`
+calls `ResetValue` on every control. So a default name given in `SafeAwake` shows at
+first and later comes back as the constructor's keycode -- seen in single player: two
+rows meant to answer `var_1` and `var_2` both ended up pressing `C`.
+
+```csharp
+row.Emulate = AddEmulatorKey("Emulate", "Out0", KeyCode.C);
+row.Emulate.message = new string[] { "var_1" };
+row.Emulate.useMessage = true;
+row.Emulate.ApplyValue();          // or the load copy still says C
+```
+
+`ApplyValue` only copies the fields and raises `KeysChanged`/`KeyCountChanged` -- no
+input controller -- so it is safe in `SafeAwake`. `./tools/peek.sh dump MKey` shows it.
+
 ## The logic gate block, from the inside
 
 Worth having written down: it is the other block a mod is likely to stand in for,
@@ -203,15 +227,29 @@ the mapper's:
 
 | | limit | where |
 | --- | --- | --- |
-| keycodes on one key | **3** | `Selectors.KeySelector.MaxKeys`; the `+` on a key row is hidden once three are bound |
+| keycodes on one key | **3** | `Selectors.KeySelector.MaxKeys`; the `+` on a key row is hidden once three are bound -- the mapper's cap only, below |
 | variable names on one key | **100** | `StatMaster.KeyMapper.MaxDisplayedTags`; past it the tag editor refuses to split what is typed |
 | length of one name | **32** | `StatMaster.KeyMapper.VariableCharLimit` |
+
+**Past the mapper nothing counts keycodes to three.** `MaxKeys` is read by
+`KeySelector.CenterKeys` and `LeftAlignKeys` (layout) and by
+`OverviewBlockMapper.AdjustKey`, which checks it on the *add* path only: refuses a
+fourth, never trims one already there. `Machine.InitSimBlock` registers every
+keycode a key holds, and `KeyInputController.Emulate`, for an emulating key on
+keycodes, walks `KeysCount` and presses every one. So a mod may bind more than three
+to an input or to what a block presses, and it works in a run; the player just
+cannot add past three in the game's own mapper. Node Editor uses five.
 
 **Separators are `;` and `,` when typing, `;` alone in storage.**
 `Selectors.TagSelector.SEPARATOR_CHARS` is both; `MKey.SplitVariable` reads on `;`
 and `MKey.CombineVariables` writes on `;`. A mod with its own name field should
 split on both and cut to 32, or it will write names the game's own mapper cannot
 edit afterwards.
+
+**Names match exactly, case included.** `KeyInputController.usedMessages` is a
+`Dictionary<string, List<KeyEntry>>` built with the default comparer, so `Door` and
+`door` are two variables. A mod that generates names should pick one case (lower
+reads best) rather than trust the player to retype it.
 
 **Several of either are OR-ed.** `MKey.IsHeld` walks the keycodes and returns on
 the first one held; the names go through the emulation count, so the key is held
@@ -274,6 +312,54 @@ the game skips them all: nothing inside the block can drive anything else inside
 it, and every wire between two of its own parts is dead the moment the machine
 runs. It looks right in a mapper, converts correctly to real blocks, and does
 nothing in a simulation — the failure is invisible outside a run.
+
+### Trap 2c: `Emulate` presses names *or* keycodes, and looks each up unguarded
+
+`KeyInputController.Emulate` tests the emitting key's `useMessage`, walks its
+`message` names **and returns**; the keycodes are the other branch. A key bound to
+names presses no keycode, whatever spare keycode it still holds. One emulator cannot
+raise `C` and `door` together — that takes a second key, or an OR gate reading the
+name and pressing the key (one fixed step later).
+
+Each lookup is a bare `usedMessages[name]` / `usedKeys[code]` indexer, no
+`TryGetValue`. The entries come from `Machine.InitSimBlock` calling
+`KeyInputController.AddMKey(block, key, code)`, which creates the entry for every
+name and keycode a block's key uses; for an emulator (`isEmulator`) it creates the
+entry without listing the key as a listener. So a block's registered keys are safe
+to emit. A key made at run time — `new MKey("Relay", "relay", KeyCode.C, true)`,
+never registered — goes through `EmulateKeys` the same way (nothing in `Emulate`
+checks where the emitter came from), but the indexer throws `KeyNotFoundException`
+when nothing on the machine uses that keycode. Catch it: nothing would have heard
+the press. `BlockBehaviour.inputController` is private, so registering such a key
+yourself is not open.
+
+**Confirmed in game:** a run-time key built in `OnSimulateStart` and bound by hand
+(`BindVariable`, or keycodes) presses real blocks, variables, and other modded
+blocks' keys, and lets go cleanly on `OnSimulateStop`. So a block whose rows only
+*press* keys can keep those rows as its own data — one `MText` — rather than a
+fixed pool of `MKey` controls, and build the pressing keys when a run starts.
+
+**A key that listens can be filed by hand too (confirmed in game).** It is not the
+block's registration that hears presses, it is `KeyInputController`'s tables, and
+those are reachable: `BlockBehaviour.ParentMachine` is public, `Machine.Awake` adds
+the controller as a component (`machine.GetComponents<KeyInputController>()`, the
+last one where a network player's was added after), and the three calls
+`Machine.InitSimBlock` makes per key are all public. In `OnSimulateStart`:
+
+```csharp
+key.SetInputController(controller);          // IsPressed and friends read through it
+for (int k = 0; k < key.KeysCount; k++)
+{
+    controller.AddMKey(BlockBehaviour, key, key.GetKey(k));   // names too, if useMessage
+    controller.Add(key.GetKey(k));
+}
+```
+
+A key made with `new MKey(...)` and filed this way hears the keyboard, variables,
+and other blocks' emulation, and a block's `EmulateKeys` own-key filter still
+works on it by reference. So a table whose rows read keys can keep them as its own
+data as well. (`MMenu`, `MToggle` and `MSlider` have public constructors too, and
+`MSlider.Value` does not clamp.)
 
 ### Trap 3: `IsReleased` is the one key property that does not check `useMessage`
 

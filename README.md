@@ -123,7 +123,8 @@ specifics rather than general lesson:
   vendored volumetric-lighting pass. All of 17 and 18, key-emulation split in 03,
   deprecated-`IsDown` and staging-folder traps, third and last of dead
   `OnSimulateStart` resets 08 warns about.
-- **Timer Plus** — one block that is up to thirty-two timer blocks, table-driven. Timer
+- **Node Editor** (was Timer Plus) — timer and logic gate blocks that are up to
+  thirty-two of the game's own, table-driven, with a node editor for the gates. Timer
   block section of 03, keyboard-holding section of 08, `onEndEdit` commit rule in 04,
   the own-type-name collisions in 01 and the correction to `Slider` in 04.
 

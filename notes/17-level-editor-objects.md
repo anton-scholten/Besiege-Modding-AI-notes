@@ -27,6 +27,36 @@ public override void OnEntityPrefabCreation(int entityId, GameObject prefab)
 }
 ```
 
+### `<ID>` is a bare integer in a namespace every mod shares
+
+The hook fires on **every loaded mod's entry point for every entity in the game**,
+and the only thing a mod has to filter on is that integer. So two mods that both
+number an entity `1` decorate each other's objects, silently and both ways.
+
+Measured: a sand region with `<ID>1</ID>` came out of the palette wearing another
+mod's spotlight beam and lens, because that mod's hook is
+
+```csharp
+if (entityId != SpotLightEntityId) return;   // SpotLightEntityId == 1
+SpotLightEntity.Beam(prefab);
+SpotLightEntity.Lens(prefab);
+```
+
+and the sand mod was attaching its own component to that mod's light in return.
+Neither mod is wrong on its own; the id space is simply shared and nothing says so.
+Unlike a *block* id, which Besiege namespaces by writing the prefab's name as
+`<mod guid>-<local id>` (see [02-blocks.md](02-blocks.md)), an entity id reaches the
+hook with nothing attached to it.
+
+Two things follow. **Do not number entities from 1.** Pick a range nothing else is
+likely to use and keep it, since the id is as immutable as a block's once a level
+has been saved with it. And **log the id and prefab name** the first time the hook
+runs, so the next collision is a line in `Player.log` rather than a mystery lens:
+
+```csharp
+Debug.Log("[Mod] entity prefab " + entityId + " '" + prefab.name + "'");
+```
+
 From there it's an ordinary Unity component: `Awake`, `Start`, `Update`, `OnDestroy`.
 **None of the block lifecycle applies** — no `SafeAwake`, no `SimulateUpdateAlways`, no
 `OnSimulateStart`, no simulation clone. The object you get in `Awake` is the object the

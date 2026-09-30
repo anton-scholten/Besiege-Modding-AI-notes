@@ -17,15 +17,16 @@ bottom.
 - `3` Mod layout
 - `53` Installing during development: symlink the mod folder
 - `80` Where a mod may write
-- `175` `<LoadInTitleScreen />` decides when the mod's code first runs
-- `186` The blacklist is a namespace prefix test, with carve-outs
-- `265` The compiler is Besiege's own, and it is ancient
-- `303` A short public type name of your own collides three ways
-- `340` Compiled DLL or ScriptAssembly: the difference that matters
-- `377` Module attributes: required unless defaulted
-- `416` `modid` on a module element is optional
-- `441` When a block does not appear
-- `468` `ModIO` is the mod.io SDK, not Besiege's file helper
+- `178` Asking whether another mod is installed
+- `214` `<LoadInTitleScreen />` decides when the mod's code first runs
+- `225` The blacklist is a namespace prefix test, with carve-outs
+- `304` The compiler is Besiege's own, and it is ancient
+- `342` A short public type name of your own collides three ways
+- `379` Compiled DLL or ScriptAssembly: the difference that matters
+- `416` Module attributes: required unless defaulted
+- `455` `modid` on a module element is optional
+- `480` When a block does not appear
+- `507` `ModIO` is the mod.io SDK, not Besiege's file helper
 
 ## 02-blocks.md
 
@@ -56,44 +57,45 @@ bottom.
 - `3` `MKey` carries the whole automation feature
 - `12` Reading an emulated key
 - `82` Variables are keys with names
-- `93` The logic gate block, from the inside
-- `321` The timer block
-- `343` `MSlider.Value` does not clamp, and `Min`/`Max` are settable
-- `359` Hiding a block's controls from Besiege's mapper
+- `93` A binding set in code needs `ApplyValue`, or it falls back
+- `117` The logic gate block, from the inside
+- `407` The timer block
+- `429` `MSlider.Value` does not clamp, and `Min`/`Max` are settable
+- `445` Hiding a block's controls from Besiege's mapper
 
 ## 04-ui-factory.md
 
 - `3` Besiege's own interface cannot be borrowed
 - `30` What UI Factory is
-- `165` Four more that cost something to find
-- `197` Two that stop a panel dead
-- `230` Dragging a number in an `Input Field`
-- `275` One owner per `SetActive`, or the last writer wins
-- `290` Two rows governed by one control
-- `297` Rows that come and go, and closing up the gap
-- `322` Tooltips
-- `368` A window sized to its contents needs an edge to grow from
-- `377` Depend on it softly
-- `409` If you build a text field by hand
-- `434` Committing a setting is not the same as setting it
-- `463` Rebuild or rebind, but write every caption every time
-- `496` Do not churn `DisplayInMapper`
-- `511` The `Window` prefab's Viewport masks nothing until you size it
-- `553` Hover swell does not ask whether the control works
-- `567` The wheel over your panel also zooms the camera
-- `587` `Scrollbar` is one of Besiege's own type names
-- `596` The Bridge components, in full
-- `614` Any part of a window can be a drag handle
-- `633` Keep your canvas below `sortingOrder` 30000
-- `640` Own the window's anchors before remembering where it is
-- `654` You cannot colour a UI Factory graphic; put one of your own in front of it
-- `674` A button inside a button works; a heading that fits its own button is the work
-- `688` Whether a prefab's label is the prefab
-- `697` UI Factory has no colour picker, and Besiege's is out of reach
-- `727` Borrowing a prefab's own corners
-- `739` What is in UI Factory's sprite bundle cannot be listed
-- `752` Committing a typed value
-- `768` The house style: how a selector and a toggle are built
+- `183` Four more that cost something to find
+- `215` Two that stop a panel dead
+- `248` Dragging a number in an `Input Field`
+- `300` One owner per `SetActive`, or the last writer wins
+- `315` Two rows governed by one control
+- `322` Rows that come and go, and closing up the gap
+- `347` Tooltips
+- `393` A window sized to its contents needs an edge to grow from
+- `402` Depend on it softly
+- `434` If you build a text field by hand
+- `459` Committing a setting is not the same as setting it
+- `488` Rebuild or rebind, but write every caption every time
+- `521` Do not churn `DisplayInMapper`
+- `536` The `Window` prefab's Viewport masks nothing until you size it
+- `578` Hover swell does not ask whether the control works
+- `592` The wheel over your panel also zooms the camera
+- `637` `Scrollbar` is one of Besiege's own type names
+- `646` The Bridge components, in full
+- `664` Any part of a window can be a drag handle
+- `683` Keep your canvas below `sortingOrder` 30000
+- `690` Own the window's anchors before remembering where it is
+- `704` You cannot colour a UI Factory graphic; put one of your own in front of it
+- `724` A button inside a button works; a heading that fits its own button is the work
+- `738` Whether a prefab's label is the prefab
+- `747` UI Factory has no colour picker, and Besiege's is out of reach
+- `777` Borrowing a prefab's own corners
+- `789` What is in UI Factory's sprite bundle cannot be listed
+- `802` Committing a typed value
+- `818` The house style: how a selector and a toggle are built
 
 ## 05-docking-a-window.md
 
@@ -146,25 +148,31 @@ bottom.
 - `54` A canvas over Besiege's UI does not stop it being clicked
 - `115` A click goes to the first handler at or above what it hit
 - `167` What `StatMaster.inMenu` actually turns off, and what it doesn't
-- `209` Two transparent Images that overlap composite darker
-- `229` Rich text is lowercase-only, and Besiege's captions are not
-- `241` Read the player's real keybindings, do not print the defaults
-- `250` A mod key's default may collide with the game's, and nothing will say so
-- `270` Scene names tell you where the player is
+- `237` Two transparent Images that overlap composite darker
+- `257` Rich text is lowercase-only, and Besiege's captions are not
+- `269` Read the player's real keybindings, do not print the defaults
+- `278` A mod key's default may collide with the game's, and nothing will say so
+- `298` Scene names tell you where the player is
+- `316` Hundreds of lines: one `MaskableGraphic` mesh, not an `Image` each
 
 ## 10-resources-and-publishing.md
 
 - `3` `<Resources>` is a manifest, and that is a design decision
 - `45` Uploading resets your Workshop preview image
-- `80` A read-only file in the staging folder stops every upload
-- `98` `<ID>` and what breaks
-- `105` What ships and what is fetched
-- `122` The README every mod in this family uses
-- `145` Install
-- `146` <one section per thing the player does>
-- `147` Notes
-- `148` Credits
-- `149` Licence
+- `80` A preview over 1 MiB fails every upload as "limit exceeded"
+- `108` A read-only file in the staging folder stops every upload
+- `126` `<ID>` and what breaks
+- `133` What ships and what is fetched
+- `150` The words your mod shows: Besiege's localisation cannot hold them
+- `208` Translating the words is only half of it: the font has to draw them
+- `253` `ModIO` reads and writes UTF-8, so a translation file needs no encoding of its own
+- `263` `ModIO`'s second argument: the mod's folder, or its data folder
+- `279` The README every mod in this family uses
+- `300` Install
+- `301` <one section per thing the player does>
+- `302` Notes
+- `303` Credits
+- `304` Licence
 
 ## 11-the-load-screen.md
 
@@ -180,14 +188,15 @@ bottom.
 - `6` Besiege autosaves already, and has for years
 - `31` Retuning a block does not count as changing the machine
 - `66` Reading a `.bsg` when `System.IO.File` is blacklisted
-- `84` `MachineInfo` and `BlockInfo`
-- `116` Some blocks are several blocks
-- `150` Loading a machine from a mod
-- `163` Adding blocks to the machine, as a selection the player can move
-- `207` One undo step for an edit that touches several controls
-- `243` Reading another block's settings, and taking it off the machine
-- `291` An undo closes the block mapper, and your panel with it
-- `334` Writing a `.bsg`: `XmlSaver.Save` is forbidden
+- `84` Writing another mod's block into a machine
+- `100` `MachineInfo` and `BlockInfo`
+- `132` Some blocks are several blocks
+- `166` Loading a machine from a mod
+- `179` Adding blocks to the machine, as a selection the player can move
+- `223` One undo step for an edit that touches several controls
+- `259` Reading another block's settings, and taking it off the machine
+- `307` An undo closes the block mapper, and your panel with it
+- `350` Writing a `.bsg`: `XmlSaver.Save` is forbidden
 
 ## 13-drawing-over-the-machine.md
 
@@ -226,11 +235,11 @@ bottom.
 ## 17-level-editor-objects.md
 
 - `12` There is exactly one hook, and it fires on the prefab
-- `41` The SETTINGS tab takes the same controls a block's mapper does
-- `93` Level variables are the way a level drives one object
-- `129` A modded event gets a much poorer set of controls
-- `140` Entity XML notes
-- `153` Checked
+- `71` The SETTINGS tab takes the same controls a block's mapper does
+- `123` Level variables are the way a level drives one object
+- `159` A modded event gets a much poorer set of controls
+- `170` Entity XML notes
+- `183` Checked
 
 ## 18-vendoring-unity-code.md
 
@@ -262,6 +271,17 @@ bottom.
 - `181` `UnityWebRequest` polling a local process keeps up with the frame rate
 - `197` Checked
 
+## 21-many-particles-and-gpgpu.md
+
+- `9` Besiege's physics runs at 100 Hz, which halves every budget you assumed
+- `25` Rigidbodies are the obvious answer and they run out early
+- `36` Graphics API census: what 5.4 has, and the four things it does not
+- `64` Two GPGPU routes, and Besiege ships a worked example of both
+- `221` `BuoyancyManager` is the template for coupling a mod simulation to PhysX
+- `238` Threads are allowed, and that is where CPU headroom is
+- `261` No native code, so no physics library
+- `269` Checked
+
 # Symbol map
 
 Which note names a thing. Notes by number; open section index above, then note.
@@ -274,6 +294,7 @@ Which note names a thing. Notes by number; open section index above, then note.
 | global type names, `Slider`/`Scrollbar`/`Keys`/`Convert` collisions | 01, 04 |
 | `[DefaultValue]`, module attributes | 01, 06 |
 | `Mod.xml`, `<ID>`, required elements | 01, 10 |
+| `Modding.Mods`, is another mod installed, `requiredMods` | 01 |
 | `BlockPrefab`, `PrefabMaster`, block ids | 02, 03, 13 |
 | `BlockTypeIconCreator`, toolbar icon cache | 02 |
 | `<AddingPoints>`, `<BasePoint>` | 01, 02 |
@@ -313,3 +334,8 @@ Which note names a thing. Notes by number; open section index above, then note.
 | `LevelEntity`, `GenericEntity`, level variables | 17 |
 | `ChatController`, `PlayerData`, `Playerlist` | 19 |
 | `Shader.Find`, `DynamicText`, world text | 02, 13 |
+| `ComputeShader`, `ComputeBuffer`, `Graphics.DrawProcedural` | 21 |
+| no `DrawMeshInstanced`, no `ComputePenetration`, 65535-vertex mesh | 21 |
+| `CodeAnimo.GPGPU`, `SurfaceWaves`, `Buoy`, `BuoyancyManager` | 21 |
+| `System.Threading`, worker threads, `Stopwatch` | 07, 21 |
+| many particles, granular, PhysX body budget | 21 |

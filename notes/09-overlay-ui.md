@@ -174,6 +174,15 @@ mouse and keyboard. It is worth knowing exactly which of the game's own code ask
   whole pan-and-orbit block when it is set.** That is what stops a drag over your
   window from also swinging the camera — `InputManager.PanCameraKeyHeld()` is never
   reached.
+- **Raise it on the press, not on the drag.** uGUI sends `OnBeginDrag` only past the
+  drag threshold, and never for a click that stays put — so an overlay holding in
+  `OnBeginDrag` lets a plain middle *click* through and the camera pans under your
+  window, which reads as "sometimes the middle button passes through". Hold in
+  `OnPointerDown`, give it back in `OnPointerUp` unless your own drag is still
+  running; the hold is idempotent, so the drag's grip costs nothing and either order
+  uGUI sends up and end-drag in is safe. These events reach only what is under the
+  pointer and its parents: without a handler on the window **root**, a press on your
+  title bar or margins reaches nothing of yours.
 - **But it eases the zoom before it asks, and reads the wheel after.** Above that
   early exit, `Update` lerps `zoomSmoothDelegate` towards `scrl * distance`; the
   wheel is read into `scrl` — `disableCameraZoom ? 0 : InputManager.ZoomValue()` —
@@ -187,6 +196,16 @@ mouse and keyboard. It is worth knowing exactly which of the game's own code ask
   select-all, invert, duplicate, break-surface, delete and export-obj are all off
   while your window claims a menu. (`InputManager.AdvancedBuilding.DuplicateKeys`
   also checks `StatMaster.stopHotkeys` for itself.)
+- **The camera's movement keys do not ask about `inMenu` either.**
+  `InputManager.Camera.ForwardKeyHeld` / `BackwardKeyHeld` / `LeftKeyHeld` /
+  `RightKeyHeld` / `RollLeftKeyHeld` / `RollRightKeyHeld`, and `MouseOrbit.WASD`,
+  return false on `stopHotkeys` or `stopWASDcamMovement` alone. A focused UI Factory
+  `Input Field` raises `stopHotkeys`, so typing is covered; a key selector of your
+  own is not, and binding **A** nudges the camera. `StatMaster.StopCameraKeys(bool)`
+  is public, counted like `SetInMenu`, and the only writer of `stopWasdCounter` —
+  but **holding it from a key selector (while listening, and until the caught key
+  came up) made the camera behave worse in game, not better**, and was taken out.
+  Why is not known; do not reach for it as the fix without testing.
 - **`BlockMapper.LateUpdate` does not ask about `inMenu`.** Its Ctrl+C / Ctrl+V —
   `InputManager.CopyKeys` / `PasteKeys`, which copy and paste a *block's mapper
   settings* — are gated on `stopHotkeys` alone. A mod window open beside a block
@@ -293,3 +312,24 @@ Which campaign level belongs to which island isn't in the scene name, but it is 
 game's own level-select scenes — read it out of those rather than fingerprinting
 terrain, which looks like it should work and doesn't (level 13 is a space level, so any
 assumed contiguous build-index mapping is wrong).
+
+## Hundreds of lines: one `MaskableGraphic` mesh, not an `Image` each
+
+A line drawn as a thin, rotated `Image` is a GameObject. Curved wires at a dozen such
+pieces each came to ~700 objects on a modest node board, all destroyed and rebuilt on
+every edit and all re-laid on every frame of a pan or a drag: that was the stutter.
+
+One `MaskableGraphic` subclass overriding `OnPopulateMesh(VertexHelper vh)` draws every
+segment as a quad — four `AddVert`, two `AddTriangle` — and costs one object and one
+mesh upload however many lines there are. Refill its segment list and call
+`SetVerticesDirty()`. The loader accepts it; `UnityEngine.UI` is not blacklisted.
+
+- **Give its rect the size of the area the lines cover.** A graphic is culled by its
+  own rect, and a zero-size one at a corner goes out of sight with that corner.
+- **Lines on content that pans or zooms need no redraw for it.** Their coordinates
+  are the content's own; only a loose end that follows the pointer moves.
+- **Cache per line, pour into the mesh.** Working a line out (port positions, a bezier,
+  a colour) is the cost; copying cached segments into the mesh is not. A drag need
+  only work out the lines on what it moves.
+
+Besiege 5.4.0f3, September 2026: Node Editor's `WireMesh`, seen drawing in game.

@@ -93,6 +93,9 @@ Modding.ModIO.ReadAllText("Tips/builder.txt", false);            // the mod fold
   name with spaces stripped, `ID` = manifest GUID:
   `Mods/Data/Clippy_e781508b-39fe-4a34-a98a-c2a2ab265775/`. Place for settings +
   anything mod writes. Survives updates, per-mod, so no namespacing inside it.
+  **Survives updates, not a rename:** folder keyed off `<Name>` as well as GUID, so
+  changing the mod's display name starts empty folder and strands every file in
+  old one. Rename before first release, or carry files across yourself.
 
 `ModIO` finds mod by walking back to **calling assembly** and matching against
 manifest — `AssemblyLoader.GetModByAssembly` — else throws
@@ -171,6 +174,42 @@ ordinary, and have a fallback needing no dialog (folder under
 Note what dialog is *for*: it shows player whole disk, and `ModIO` opens none of
 it but mod's own folders. Either check what came back and say so, or don't offer
 the dialog.
+
+## Asking whether another mod is installed
+
+`Modding.Mods` — three static methods, public, **not** blacklisted:
+
+```csharp
+bool    Modding.Mods.IsModLoaded(Guid id);
+Version Modding.Mods.GetVersion(Guid id);   // null when absent
+        Modding.Mods.OnModLoaded += handler;
+```
+
+Both are thin wrappers over `InternalModding.Loading.ModIds.GetModById`, which is
+blacklisted — so this is the *only* way a mod can ask, and it is enough. The guid
+is the other mod's `<ID>` from its `Mod.xml`.
+
+Worth pairing with the prefab lookup when the point is to *write* that mod's
+block: a mod can be loaded while one of its blocks failed to register, and the
+block id comes from the prefab table either way. A registered modded prefab is
+named `<mod guid>-<local id>` (see [02](02-blocks.md)), which names another mod's
+block exactly as well as it names your own:
+
+```csharp
+foreach (KeyValuePair<int, BlockPrefab> pair in PrefabMaster.BlockPrefabs)
+    if (pair.Value != null && pair.Value.name == theirGuid + "-" + theirLocalId)
+        return (int)pair.Value.Type;
+```
+
+**Use `GetVersion` for a `requiredMods` entry rather than a version of your own.**
+The entry is `<guid>~L~<version>~<name>`, and `ModList.Compare` finds the match by
+guid and then compares the version *strings* — a number hardcoded in your mod is a
+machine that warns about a mismatch the player does not have, every time the other
+mod updates. (Besiege writes `requiredMods` itself in
+`InternalModding.Mods.CompatibilityChecker.OnMachineSave`; you only write it when
+you are writing the `.bsg` yourself.) There is no accessor for the other mod's
+*name*, so that one is hardcoded — harmless, since names do not change and the
+match is on the guid.
 
 ## `<LoadInTitleScreen />` decides when the mod's code first runs
 

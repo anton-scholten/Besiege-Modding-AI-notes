@@ -78,6 +78,24 @@ Ones worth knowing:
   failed to paint. `Besiege.UI.Make.Font` is a public static field; assign to both.
   Game logs `Font is null, replacing with default` around it — Besiege's own
   message, not a warning about your field.
+
+  **Its label never holds more than fits.** `InputField.UpdateLabel` works out a
+  draw range (`SetDrawRangeToContainCaretPosition`) and writes
+  `Substring(m_DrawStart, m_DrawEnd - m_DrawStart)` into `textComponent.text` —
+  focused or not. A name longer than the box is cut at a character, and there is
+  nothing past the cut to scroll or unmask. To show all of it (a marquee, a
+  tooltip), read `field.text` into a second `Text` of your own, clip that one, and
+  hide the field's label only while `!isFocused`: the caret and selection are drawn
+  against the field's own label.
+
+  **And the label is shorter than its letters.** In the prefab `Text` (and
+  `Placeholder`) stretch to the field inset by `sizeDelta (-20, -13)`, font size 16,
+  vertical overflow on: in a 20-tall table cell the label is 7 units high and the
+  letters simply draw past it. Clip anything to the label's own rect — a
+  `RectMask2D` over a scrolling copy — and the tops of tall letters and digits go.
+  Clip across only, and give the mask a line's height above and below. Both labels
+  also carry `Besiege.UI.Bridge.LetterSpacing` (a `BaseMeshEffect`), at 0 spacing,
+  so a plain `Text` copy lays out the same.
 - **`Text Dropdown`** is a plain uGUI `Dropdown` (`NormalDropdown.prefab`), its
   template a `ScrollView` child. Two consequences: `captionText` and `itemText`
   come out fontless like Input Field's, so both want `Besiege.UI.Make.Font`; and
@@ -239,6 +257,13 @@ Put a transparent `Image` child over the field instead, `raycastTarget` on,
 stretched to 0..1, carrying the drag behaviour. It intercepts the drag, and an
 `IPointerClickHandler` on the same sheet passes a still click on with
 `field.ActivateInputField()`.
+
+**The sheet takes a drag from every button, so check which.** A value field on
+something the middle button pans — a node on a board — scrubbed its value whenever
+a pan started on it. Two halves to the fix: return early from the sheet's drag and
+click handlers for anything but `InputButton.Left`, and put the pan handler *on the
+sheet*, not on the field under it. The sheet is the first object with a drag handler
+at the pointer, so a handler on the field below never hears that drag.
 
 **Don't test `eventData.dragging` to tell a click from a drag.** True after the
 pointer moved a *single pixel*, so an ordinary click by a hand that isn't perfectly
@@ -580,6 +605,31 @@ including when the object is disabled or destroyed while still hovered, the usua
 to leak one and disable zoom for the rest of the session. Put it on the window root:
 uGUI sends `OnPointerEnter`/`OnPointerExit` to the whole chain of parents of whatever
 is under the pointer, so one component covers every row.
+
+**Switching the `Canvas` component off strands a hold** — the leak `OnDisable` does
+not catch. Disabling the canvas, which is what following `StatMaster.hudHidden` for
+Tab looks like, leaves its objects *active*: uGUI stops sending pointer events, so
+no `OnPointerExit` arrives, and `OnDisable` never runs because nothing was disabled.
+A hold taken while hovering is never given back and the wheel stays dead for the
+session — intermittently, depending on where the pointer was when the interface was
+hidden. Switch the GameObject off instead, or have the guard give the hold back
+itself:
+
+```csharp
+private Canvas roof;            // GetComponentInParent<Canvas>(), asked once
+
+private void Update()
+{
+    if (held && !(isActiveAndEnabled && gameObject.activeInHierarchy
+                  && (roof == null || roof.isActiveAndEnabled)))
+    {
+        Hold(false);            // DisableCameraZoom(false), and any menu count with it
+    }
+}
+```
+
+`Update` still runs in that state, which is what makes the self-check work: the
+object is active, only its canvas is not.
 
 `InputManager.ZoomValue` is gated on `StatMaster.stopHotkeys` instead — the heavier
 hammer, stopping most keyboard input too. Use the zoom counter.

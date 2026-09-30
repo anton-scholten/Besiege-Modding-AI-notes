@@ -81,6 +81,22 @@ behind an API of the game's, and finding that API is the job.
 see [01-loader-and-blacklist.md](01-loader-and-blacklist.md) — and a save is never in
 one.
 
+## Writing another mod's block into a machine
+
+A block written into a `.bsg` by hand carries `modId`, `localId` and `fallback`
+per block, not per file — so one machine can hold blocks from two mods, with a
+different fallback each. `XmlLoader.HandleMod` recomputes the numeric `id` from
+`modId` + `localId`, which is what makes the file portable across installs that
+number blocks differently.
+
+The machine's own `requiredMods` then has to name **every** mod it holds a block
+from, or the game quietly swaps the unnamed one for its fallback. One entry is
+written inline, several as `<String>` children. Entry format and where the version
+comes from: [01](01-loader-and-blacklist.md).
+
+Adding blocks to the *live* machine needs none of this — `BlockInfo.ID` is already
+the id this install resolved.
+
 ## `MachineInfo` and `BlockInfo`
 
 `MachineInfo.Blocks` is a `List<BlockInfo>`; a `BlockInfo` carries `Guid`, `ID` (a
