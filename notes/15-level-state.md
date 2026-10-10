@@ -119,3 +119,44 @@ Seed the cached copies with `float.NaN` so the first call always rebuilds.
 A message about a global change, written from a component on every rigidbody in the
 level, is that message a few hundred times. Log it from wherever owns the global, or
 not at all.
+
+## The level's people decide "grounded" by their own layer mask
+
+Knights, peasants and animals are `EntityAI` (on the body's root; `GetComponentInParent<EntityAI>()` from
+any of its colliders). It walks by its own physics and asks whether it is on the ground with a downward
+`Physics.Raycast` against **`groundLayerMask`, a public per-instance field**, not against whatever it
+collides with. A surface a mod adds — on the floor's layer or any other — that is not in that mask is
+air to it. Its `OnCollisionEnter` also knocks it over (`FallOver`) when a contact's relative velocity
+passes its `SelfRighting.FallImpactThreshold`. On the Sand mod's sand, knights glided and often died just
+walking; the mask is the likely cause, read from the IL, and the fix — adding the layer to the mask of each
+one that touches the surface, `ai.groundLayerMask = ai.groundLayerMask.value | 1 << layer` — is not yet
+confirmed in game.
+
+Friction too is a pair's, not the entity's: a slippery ground material combined by `Minimum` (see
+[21](21-many-particles-and-gpgpu.md), "Ground you deform") makes them skate. Give the entity's collider a material combined by `Maximum` while it touches, and its own back on
+`OnCollisionExit`. And leave them out of anything that reacts to weight or contact: a walking ragdoll's
+feet are dozens of contacts a step.
+
+**Slopes are a cosine, and walking force is a friction.** An entity takes a contact whose normal's dot with
+up is below `movement.MaxAscent` for a wall (`CostumOnCollisionStay`), and only climbs a slope it counts as
+ground when `movement.walkUpSlopes` is set; a mod surface standing at thirty degrees with steeper facets is
+a wall to most of them. Both fields are public, as is `movement.slopeClimbingSpeed`, what the AI adds
+along a slope's normal each step to carry it up; with a low value a slope it counts as ground is still
+climbed very slowly. Its drive is `-gravity.y × mass × CombineFrictions()`, where
+`CombineFrictions` takes its own collider's `sharedMaterial` against each touched collider's with Unity's
+combine rules (Average, Minimum, Multiply, Maximum, by priority) — and returns 0 if its own collider has no
+material at all — so a low-friction ground leaves it too weak to climb whatever its limits.
+
+**The god tool raycasts against colliders only.** `GodExplodeOnClick.Update`: on a left click while
+`StatMaster.GodTools.ExplodeOnClick` and simulating, `Physics.Raycast` from the cursor against
+`LayerMask.GetMask("Default","DontCollideSelf","AddPoint","AddPoint2","WaterCannon","Brace","Environment",
+"MachineVis","Sharp","BrickWall","Floor","EnemyProjectile")`, then the public `Explodey(point)`. A mod surface
+without a collider under the cursor is clicked through; give it one there each frame while the tool is on.
+
+**An entity measures an obstacle by its collider's bounding box.** `EntityAI.CalculateCollisionHight` is
+`collider.bounds.max` (in its gravity frame) less its own feet: one big mesh collider — a terrain-like
+surface a mod builds in chunks — reads as tall as its highest point everywhere. With
+`movement.canJump` set, a grounded entity jumps what is between 0.2 and `jumpHeight` and sets
+`hitHighObject` (turns away) for what is higher; with `canJump` off neither check runs and it walks into the
+surface as a slope. Raising `slopeClimbingSpeed` to help it up made it fast enough to die hitting the next
+rise.

@@ -206,7 +206,8 @@ came out of exactly that line.
 
 ## Related useful pieces
 
-- `BlockMapper.CurrentInstance`, `.IsOpen`, `.Block`, and the static `onMapperOpen` /
+- `BlockMapper.CurrentInstance`, `.IsOpen`, `.Block` (null when the level editor has the mapper open on a
+  level object: gate on `.Current`, see [17](17-level-editor-objects.md)), and the static `onMapperOpen` /
   `onMapperClose` events are how a panel knows when to show itself and on what.
 - `MapperType.DisplayInMapper` strips the mapper's own rows so the two windows don't
   show the same settings twice — see

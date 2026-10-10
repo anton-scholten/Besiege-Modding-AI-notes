@@ -47,21 +47,22 @@ bottom.
 - `115` A generated mesh has to be wound right the first time
 - `139` A block needs `<AddingPoints>`, and `hasAddingPoint="true"` is not a substitute
 - `199` The toolbar icon
-- `246` A mesh may be an outer skin with no inside
-- `254` Colouring part of a block's mesh, without a second material
-- `275` Taking the skin picker off a block
-- `334` A block's visual is not its transform
-- `345` The limits dial's little block is posed by `<LimitsDisplay>` alone
-- `385` How a machine save names a modded block
-- `451` Text in the world draws through everything, until you change its shader
-- `504` `MSlider` does not clamp, but loading does
-- `527` A block that previews itself needs a clock every block shares
-- `549` Values that only some settings can use
-- `562` A lamp block shadows itself, and `shadowNearPlane` is the way out
-- `602` The terrain does not take shadows from a light you add
-- `632` Making a block decoration: collider, visibility, mass
-- `664` `detectCollisions = false` makes a block nothing can be built on
-- `702` Bisect a block fault with an empty block
+- `246` A model's node may already turn it the way you want
+- `255` A mesh may be an outer skin with no inside
+- `263` Colouring part of a block's mesh, without a second material
+- `284` Taking the skin picker off a block
+- `343` A block's visual is not its transform
+- `354` The limits dial's little block is posed by `<LimitsDisplay>` alone
+- `394` How a machine save names a modded block
+- `460` Text in the world draws through everything, until you change its shader
+- `513` `MSlider` does not clamp, but loading does
+- `536` A block that previews itself needs a clock every block shares
+- `558` Values that only some settings can use
+- `571` A lamp block shadows itself, and `shadowNearPlane` is the way out
+- `611` The terrain does not take shadows from a light you add
+- `641` Making a block decoration: collider, visibility, mass
+- `673` `detectCollisions = false` makes a block nothing can be built on
+- `711` Bisect a block fault with an empty block
 
 ## 03-keys-and-automation.md
 
@@ -78,35 +79,35 @@ bottom.
 
 - `3` Besiege's own interface cannot be borrowed
 - `30` What UI Factory is
-- `183` Four more that cost something to find
-- `215` Two that stop a panel dead
-- `248` Dragging a number in an `Input Field`
-- `300` One owner per `SetActive`, or the last writer wins
-- `315` Two rows governed by one control
-- `322` Rows that come and go, and closing up the gap
-- `347` Tooltips
-- `393` A window sized to its contents needs an edge to grow from
-- `402` Depend on it softly
-- `434` If you build a text field by hand
-- `459` Committing a setting is not the same as setting it
-- `488` Rebuild or rebind, but write every caption every time
-- `521` Do not churn `DisplayInMapper`
-- `536` The `Window` prefab's Viewport masks nothing until you size it
-- `578` Hover swell does not ask whether the control works
-- `592` The wheel over your panel also zooms the camera
-- `637` `Scrollbar` is one of Besiege's own type names
-- `646` The Bridge components, in full
-- `664` Any part of a window can be a drag handle
-- `683` Keep your canvas below `sortingOrder` 30000
-- `690` Own the window's anchors before remembering where it is
-- `704` You cannot colour a UI Factory graphic; put one of your own in front of it
-- `724` A button inside a button works; a heading that fits its own button is the work
-- `738` Whether a prefab's label is the prefab
-- `747` UI Factory has no colour picker, and Besiege's is out of reach
-- `777` Borrowing a prefab's own corners
-- `789` What is in UI Factory's sprite bundle cannot be listed
-- `802` Committing a typed value
-- `818` The house style: how a selector and a toggle are built
+- `190` Four more that cost something to find
+- `222` Two that stop a panel dead
+- `255` Dragging a number in an `Input Field`
+- `307` One owner per `SetActive`, or the last writer wins
+- `322` Two rows governed by one control
+- `329` Rows that come and go, and closing up the gap
+- `354` Tooltips
+- `400` A window sized to its contents needs an edge to grow from
+- `409` Depend on it softly
+- `454` If you build a text field by hand
+- `479` Committing a setting is not the same as setting it
+- `508` Rebuild or rebind, but write every caption every time
+- `541` Do not churn `DisplayInMapper`
+- `556` The `Window` prefab's Viewport masks nothing until you size it
+- `598` Hover swell does not ask whether the control works
+- `612` The wheel over your panel also zooms the camera
+- `657` `Scrollbar` is one of Besiege's own type names
+- `666` The Bridge components, in full
+- `684` Any part of a window can be a drag handle
+- `703` Keep your canvas below `sortingOrder` 30000
+- `710` Own the window's anchors before remembering where it is
+- `724` You cannot colour a UI Factory graphic; put one of your own in front of it
+- `744` A button inside a button works; a heading that fits its own button is the work
+- `758` Whether a prefab's label is the prefab
+- `767` UI Factory has no colour picker, and Besiege's is out of reach
+- `797` Borrowing a prefab's own corners
+- `809` What is in UI Factory's sprite bundle cannot be listed
+- `822` Committing a typed value
+- `838` The house style: how a selector and a toggle are built
 
 ## 05-docking-a-window.md
 
@@ -159,12 +160,12 @@ bottom.
 - `54` A canvas over Besiege's UI does not stop it being clicked
 - `115` A click goes to the first handler at or above what it hit
 - `167` What `StatMaster.inMenu` actually turns off, and what it doesn't
-- `237` Two transparent Images that overlap composite darker
-- `257` Rich text is lowercase-only, and Besiege's captions are not
-- `269` Read the player's real keybindings, do not print the defaults
-- `278` A mod key's default may collide with the game's, and nothing will say so
-- `298` Scene names tell you where the player is
-- `316` Hundreds of lines: one `MaskableGraphic` mesh, not an `Image` each
+- `252` Two transparent Images that overlap composite darker
+- `272` Rich text is lowercase-only, and Besiege's captions are not
+- `284` Read the player's real keybindings, do not print the defaults
+- `293` A mod key's default may collide with the game's, and nothing will say so
+- `313` Scene names tell you where the player is
+- `331` Hundreds of lines: one `MaskableGraphic` mesh, not an `Image` each
 
 ## 10-resources-and-publishing.md
 
@@ -202,12 +203,14 @@ bottom.
 - `84` Writing another mod's block into a machine
 - `100` `MachineInfo` and `BlockInfo`
 - `132` Some blocks are several blocks
-- `166` Loading a machine from a mod
-- `179` Adding blocks to the machine, as a selection the player can move
-- `223` One undo step for an edit that touches several controls
-- `259` Reading another block's settings, and taking it off the machine
-- `307` An undo closes the block mapper, and your panel with it
-- `350` Writing a `.bsg`: `XmlSaver.Save` is forbidden
+- `179` Loading a machine from a mod
+- `192` Adding blocks to the machine, as a selection the player can move
+- `236` One undo step for an edit that touches several controls
+- `272` Reading another block's settings, and taking it off the machine
+- `320` Your own steps in the machine's undo history
+- `348` An undo closes the block mapper, and your panel with it
+- `391` Writing a `.bsg`: `XmlSaver.Save` is forbidden
+- `429` Steering the save and load screens, and changing what they write
 
 ## 13-drawing-over-the-machine.md
 
@@ -233,6 +236,7 @@ bottom.
 - `44` Level state is global, and nothing puts it back for you
 - `100` Derived thresholds go stale
 - `117` Do not log per body
+- `123` The level's people decide "grounded" by their own layer mask
 
 ## 16-cloning-a-built-in-block.md
 
@@ -250,7 +254,9 @@ bottom.
 - `121` Level variables are the way a level drives one object
 - `157` A modded event gets a much poorer set of controls
 - `168` Entity XML notes
-- `181` Checked
+- `189` An entity's `<Mesh><Rotation>` does not turn the way a block's does
+- `199` The SETTINGS tab is Besiege's block mapper, so a docked panel serves it too
+- `211` Checked
 
 ## 18-vendoring-unity-code.md
 
@@ -280,18 +286,24 @@ bottom.
 - `151` A camera rendering to a texture gets no mouse events
 - `171` The player pauses when its window loses focus
 - `181` `UnityWebRequest` polling a local process keeps up with the frame rate
-- `197` Checked
+- `197` The orbit camera pushes itself in front of your colliders, unless they are named "Floor"
+- `208` Re-aiming the game's thumbnail camera
+- `222` Recolouring a game particle system: start colour, not the material's tint
+- `240` Checked
 
 ## 21-many-particles-and-gpgpu.md
 
 - `9` Besiege's physics runs at 100 Hz, which halves every budget you assumed
 - `25` Rigidbodies are the obvious answer and they run out early
-- `36` Graphics API census: what 5.4 has, and the four things it does not
-- `64` Two GPGPU routes, and Besiege ships a worked example of both
-- `221` `BuoyancyManager` is the template for coupling a mod simulation to PhysX
-- `238` Threads are allowed, and that is where CPU headroom is
-- `261` No native code, so no physics library
-- `269` Checked
+- `36` Graphics API census: what 5.4 has, and the five things it does not
+- `66` Two GPGPU routes, and Besiege ships a worked example of both
+- `226` `BuoyancyManager` is the template for coupling a mod simulation to PhysX
+- `275` Threads are allowed, and that is where CPU headroom is
+- `345` No native code, so no physics library
+- `353` A wheel's dust cloud is reachable
+- `375` Emitting into Unity's own particle system, and leaving the game's alone
+- `397` A dense spatial grid over every particle's bounds
+- `407` Checked
 
 # Symbol map
 

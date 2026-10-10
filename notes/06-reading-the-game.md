@@ -214,6 +214,12 @@ make it optional" beats "missing attribute".
 
 ## Things that bit, or nearly did
 
+- **Headless tests run the managed half of `UnityEngine.dll` only.** A test host that loads Besiege's
+  Mono and the game's assemblies without the engine runs `Vector3`, `Mathf`, `Quaternion` multiplication
+  and the like, but anything that is an internal call into the engine — `Quaternion.AngleAxis`,
+  `Quaternion.Inverse` among them — throws `MissingMethodException` (`INTERNAL_CALL_...`). Keep code
+  the tests reach to the managed operators (a rotation about an axis is three lines of Rodrigues), which
+  is also faster in game: an internal call costs far more than the arithmetic.
 - `mod.besiege.co.uk` serves docs over plain HTTP with a broken TLS handshake on
   HTTPS. Fetch over HTTP.
 - Resource loading is **case-sensitive on Linux**, and Workshop mods authored on
@@ -222,6 +228,11 @@ make it optional" beats "missing attribute".
 - `Modding.Configuration` persists settings through `XDataHolder`, whose write method
   (`AddValue`) has an unconfirmed signature. Reachable, undocumented — check the IL
   before depending on it.
+  Simpler: a `key=value` text file in the mod's data folder through `Modding.ModIO.ExistsFile`,
+  `ReadAllLines` and `WriteAllLines` (each with `data: true`; see
+  [01](01-loader-and-blacklist.md), "Where a mod may write"). The Sand mod keeps its panel's settings
+  so, written a second after a change and once more from `OnApplicationQuit` — compiled and wired, not
+  yet confirmed in game.
 - `ModConsole.RegisterCommand(string, CommandHandler, string)` is confirmed:
   `CommandHandler` is a `void(string[])` delegate, and a method group converts to it
   implicitly, so `RegisterCommand("mycmd", OnCommand, "help")` is all it takes. Empty
@@ -232,3 +243,20 @@ make it optional" beats "missing attribute".
   `OnSimulateStop` land on the copy, never on the block an editor panel is editing.
   Anything that must be true for both has to be re-checked per frame rather than
   switched from those callbacks.
+- **There is no explosion event, but every explosive has the same public fields.** `ExplodeOnCollideBlock`
+  and `ControllableBomb` (blocks), `ExplodeOnCollide` and `ExplodeOnCollideSmall` (level objects),
+  `SmallExplosion` and `CannonBallExplosion` (cannonballs and small bombs) all carry public `radius`,
+  `power`, `upPower` and `hasExploded` (and a private `explosionPos`; `transform.position` is close
+  enough on the frame it is noticed). The only event in sight, `CollisionHook.ExplosionHappend`, is per
+  object: it tells a thing it has been hit, not that something went off. So poll: a machine's
+  `SimulationBlocks` for the two block types (cheap, every few frames), `FindObjectsOfType` for the rest
+  (a few times a second), and note each instance ID once. The effect prefab, `ExplosionEffectAdv`, keeps
+  its own `maxPower` and `maxRadius` private.
+- **`StatMaster.stopZoomCounter` is readable, not writable** (its setter is not public), and
+  `StatMaster.DisableCameraZoom(false)` is how a hold is given back. A count above the holds a mod knows
+  it has taken, with the pointer over no uGUI object and no button down for a second or two, is a hold
+  nobody is going to release (Besiege's own are given back as the pointer leaves its scrollbars); calling
+  `DisableCameraZoom(false)` that many times gets the wheel back.
+- **Reflection, for a look at the game's types, runs offline** in the same host that runs the tests
+  (`Assembly.LoadFrom` on `Assembly-CSharp.dll`, then `GetTypes`/`GetFields`): the field's `IsPublic` says
+  whether a mod can name it at all, which a decompiler dump does not make obvious.

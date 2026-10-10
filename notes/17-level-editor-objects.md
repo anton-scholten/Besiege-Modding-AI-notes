@@ -177,6 +177,36 @@ on the SETTINGS tab, where they get real sliders, and let **Modify Variable** dr
   equivalent.
 - `<Colliders>` is what the editor click-tests against. An object with no visible body
   still needs one or it can't be selected.
+- **`<Offset>` is used once, at placement** (`LevelEditor.LateUpdate`: the ghost goes to the
+  hit point plus the offset times the ghost's scale). The scale tool works about the object's
+  origin, so a mesh centred on its origin and lifted by `<Offset>` sinks half into the ground
+  on the first resize, and a save keeps it there. Put the origin where the object should stand
+  (raise the mesh and collider in the XML) instead.
+- **The editor's pick ray hits triggers**: `RaycastAll(..., QueryTriggerInteraction.Collide)`.
+  An entity's collider can be `trigger="true"` and still be clicked — useful for a marker
+  object the level's own raycasts and physics should look through.
+
+## An entity's `<Mesh><Rotation>` does not turn the way a block's does
+
+The editor's frame for an entity's mesh is not the object's. A mesh authored in block convention (Z-up, the
+business end at +Z) pointed right with no rotation, along the object's forward turned `x -90`, and sideways
+turned `x -180` — which together say mesh Y lies along world Z, mesh Z along world X and mesh X along world Y.
+So to stand that mesh up, turn it a quarter about **Y** (`<Rotation x="0" y="90" z="0">`), which takes +Z onto
+the X that is world up. (If "right" was in fact the other side it is `y="-90"`; the first in-game look says
+which.) Fix it in the XML: measuring the mesh's axis at runtime and turning a child works, but it is work done
+in game for something a fixed number decides.
+
+## The SETTINGS tab is Besiege's block mapper, so a docked panel serves it too
+
+The level editor opens the same `BlockMapper` on a selected object (`LevelEditor.OpenBlockMapper` ->
+`BlockMapper.Open(SaveableDataHolder)`). `BlockMapper.Current` is then the object's `GenericEntity`:
+`.Block` (`Current as BlockBehaviour`) is null and `.Entity` (`Current as GenericEntity`) is not. A docked
+panel ([05-docking-a-window.md](05-docking-a-window.md)) that gates on `mapper.Block != null` never shows for
+an entity; gate on `mapper.Current` and let the panel's own test pick block or entity. The entity's mapper has
+a header with a LOGIC page beside SETTINGS (`BlockMapper.IsLogic`, the static `logicToggle`, always false for a
+block); turning to it neither closes nor reopens the mapper, so a panel must stand aside while `IsLogic` and
+poll to come back — no event says SETTINGS is showing again. Edits go through
+`BlockMapper.OnEditField(mapper.Current, control)` as for a block.
 
 ## Checked
 

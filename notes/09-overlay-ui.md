@@ -212,6 +212,13 @@ mouse and keyboard. It is worth knowing exactly which of the game's own code ask
   mapper cannot shadow those two by raising the menu count, and `stopHotkeys` is
   not a good thing to hold: `UndoSystem.CanInteract` refuses while it is set, so
   holding it costs the player Ctrl+Z. Pick different keys instead.
+- **That is also how to take Ctrl+Z for yourself.** `StatMaster.StopHotKeys(bool)` is public and
+  counted (`stopHotCounter`; it logs an error and clamps if dropped below zero), and the machine's undo
+  and redo — read in `AddPiece.Update` as `InputManager.UndoKeys()` / `RedoKeys()`, then
+  `UndoSystem.Undo()`, which returns early unless `CanInteract()` — stand down while it is up. Raise it
+  when **Ctrl** goes down, not when Z does: whether your `Update` or `AddPiece`'s sees the Z first in a
+  frame is not yours to choose. Raise it only while your mode is on (a paint mode, say), and drop it the
+  moment Ctrl comes up: the camera's movement keys stand down for it too.
 
 **A key your window takes can still reach the game.** The hover hold is only up while
 the pointer is over the window, and keyboard shortcuts do not care where the pointer
@@ -233,6 +240,14 @@ hold is given back, and the game's camera picks up the same drag. So take a seco
 hold in `OnBeginDrag`, give it back in `OnEndDrag`, and give it back in `OnDisable`
 too, or a window torn down mid-drag leaves the game believing a menu is open for
 ever.
+
+Hover is the wrong length for the keyboard too. Held from `OnPointerEnter` to
+`OnPointerExit`, the count makes every block key and camera key dead while the pointer
+merely rests on the window — a player steering a machine with the pointer parked over
+a side panel finds the machine deaf. Hold `DisableCameraZoom` for the hover (the wheel
+is the pointer's), and the menu count only while a press that began on the window is
+held and while one of its input fields is focused
+(`EventSystem.currentSelectedGameObject`'s `InputField.isFocused`).
 
 ## Two transparent Images that overlap composite darker
 

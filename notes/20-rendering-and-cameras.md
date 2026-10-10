@@ -194,6 +194,49 @@ at 146 fps: it runs as fast as the frame loop polls it. 5.4 names: `Send()` (not
 blacklist leaves ([01](01-loader-and-blacklist.md)), and the way a mod talks to a
 native program it cannot load.
 
+## The orbit camera pushes itself in front of your colliders, unless they are named "Floor"
+
+`MouseOrbit.LimitDistance` keeps the camera out of the scenery by `Physics.SphereCastAll` from the target
+towards the camera against `environmentMask` = `0x31000001` — layers 0, 24, 28 and 29 — and moves the
+camera in front of the first hit. It skips a hit that is a block, a non-kinematic body, very small,
+**a collider whose GameObject name contains `"Floor"`**, or one tagged `Cannonball`, `Projectile` or
+**`CamIgnored`**. Anything a mod puts on those layers for machines to stand on — a deformable ground's
+collider is on the floor's layer by necessity — yanks the camera in close whenever it comes between,
+until it is named or tagged out. Name the GameObject with "Floor" in it (cannot fail), and set the tag in a
+`try` (setting a tag the project does not define throws).
+
+## Re-aiming the game's thumbnail camera
+
+The load screen's thumbnails are taken by `ThumbnailCreator` (one in the scene, inactive with the screen;
+`Resources.FindObjectsOfTypeAll`), right after the machine file is written: `PrepareCamera` stores the
+camera's position, rotation, fov, culling mask and clip planes, aims it at the machine, `Camera.Render()`s
+`thumbnailCamera` (public) into a texture, and `RestoreCamera` puts every one of those back. So
+`Camera.onPreCull`, which fires for a manual `Render()` too, can re-aim it for that one picture: set the
+transform, mask and clip planes there, and the game restores them itself (neither the camera's projection
+nor its view matrix is set by hand, so re-aiming the transform is enough). The capture comes after the save
+screen has closed, so a flag set in `XmlSaver.OnSave` to mark "this render is the thumbnail" must live a few
+seconds, not until the screen closes. Meshes the mod draws with
+`Graphics.DrawMesh(..., camera: null)` may not have been submitted yet in a frame where the save happens
+partway through `Update`; submit them for that camera from the same `onPreCull` callback.
+
+## Recolouring a game particle system: start colour, not the material's tint
+
+The stock particle shaders (`Particles/Alpha Blended` and kin, which the game's own effects
+use — a wheel's `WheelSmoke` dust among them) draw a particle as its colour times twice the
+material's `_TintColor`. The two are not alike to change. `ParticleSystem.startColor` (5.4's
+property) is copied into each particle when it is emitted, so setting it changes only what is
+made from then on. `_TintColor` is the material's, and the material draws every particle the
+system has: changing it recolours the whole cloud already in the air, that frame. A mod that
+swapped the tint as a wheel crossed from one ground to another made the wheel's entire trail
+flash to the new colour. Set the tint once to a neutral grey (0.5, 0.5, 0.5, 0.5, under which a
+particle is exactly its own colour), fold the old tint into the colours you emit instead
+(`colour * tint * 2`), and put the tint back when you let the system go. `r.material` on the
+renderer gives that system its own copy, so the change stays on the one effect.
+
+Particles/Alpha Blended is also the cheap route to a soft particle of your own: a texture made
+at runtime (white, alpha falling smoothly to zero at the rim) on camera-facing quads built into a
+dynamic mesh, with the same neutral tint, needs no bundle and no shader of your own.
+
 ## Checked
 
 Besiege 5.4.0f3, Linux, September 2026. The `WaitForEndOfFrame` failure, the

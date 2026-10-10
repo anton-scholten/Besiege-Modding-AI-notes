@@ -132,6 +132,13 @@ nothing to patch. Switch the Blur **GameObject** off — not the Image, which
 `BlurHandler.Update` turns straight back on — and raise the window's own plate to
 an alpha that stands without it; prefab's is 0.39 and expects the frosting.
 
+**A small control that should look like a window's bar: spawn another `Window`.** The
+plate's colour, its 0.39 alpha and the frosting are the prefab's and the blur's, not numbers
+you can copy into an `Image` and get the same look — the `Blur` child is what makes it read
+as the window. For a folded icon or a badge that must match an open panel, spawn a second
+`Window` at that size with its `TopBar` and `ScrollView` off, lay whatever darkening the
+panel's bar has over it, and the picture on top with a clear background.
+
 **Give a `Window` a full-screen canvas of your own.** Three separate faults come of
 not doing that; the first two look nothing alike.
 
@@ -427,7 +434,20 @@ public static bool Available
 ```
 
 Two details: UI Factory loads its bundle a moment after the mod does, so a single
-early ask answers "no" wrongly — cache only the affirmative. And while it's
+early ask answers "no" wrongly — cache only the affirmative.
+
+**But an early ask can do worse than answer wrongly: it can take UI Factory away for the
+whole session.** When UI Factory loads *after* your mod — more likely the more workshop
+mods load between the two — the first method you call that mentions `Besiege.UI` is
+compiled before the assembly is there, and Mono marks your assembly's reference to it
+missing *for good*: every later use throws `FileNotFoundException: Could not load file or
+assembly 'Besiege.UI'` (or `Besiege.UI.Bridge`), though the log shows UI Factory loading a
+moment later. A `try` round the call does not help — the call is fine, the reference is
+dead. So ask the mod loader first, with nothing of UI Factory's in sight:
+`Modding.Mods.IsModLoaded(new Guid("61d89dcf-88a2-4a16-8eb2-08aeed441f1d"))` (UI Factory's
+`<ID>`), from a class that never mentions `Besiege.UI`, and make the first call that does —
+`WhenReady`, `Make.Instance`, a font, a swell — only once that says true. Poll it from
+`Update` rather than deciding in `Start`. And while it's
 genuinely absent, each ask costs a caught `TypeLoadException`, so ask on a timer
 rather than every frame if the answer drives per-block behaviour.
 

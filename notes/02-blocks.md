@@ -243,6 +243,15 @@ Anything a behaviour adds **at runtime is absent from the toolbar tile** — til
 photographed from the block's mesh. Decoration that must appear in toolbar must be
 part of the mesh, not a child object added in `SafeAwake`.
 
+## A model's node may already turn it the way you want
+
+poly.pizza models exported from FBX are often authored Z-up with the *node* turning them Y-up (a -90 about X
+on the mesh's node). A converter that reads the mesh's own positions and assumes Y-up lays such a model on its
+side. Read the node's rotation before mapping axes: if the mesh is Z-up in its own frame it is already in
+Besiege's block convention, and only the handedness needs flipping ((x, y, z) -> (-x, y, z), winding
+reversed). Models without texture coordinates need some made before a texture shows on them — wrapped round
+the long axis does for anything round.
+
 ## A mesh may be an outer skin with no inside
 
 Frame or cage modelled as a shell has outward-only faces, so from inside the far

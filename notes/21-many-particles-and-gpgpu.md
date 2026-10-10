@@ -33,7 +33,7 @@ not need them.
 Everything below is the alternative: own the state in arrays, own the integration,
 and touch PhysX only where the two worlds meet.
 
-## Graphics API census: what 5.4 has, and the four things it does not
+## Graphics API census: what 5.4 has, and the five things it does not
 
 Measured against the shipped `UnityEngine.dll` with `tools/peek.sh sig <type> --
 .../Managed/UnityEngine.dll`. Present:
@@ -60,6 +60,8 @@ Absent, and each one kills a standard recipe:
   to be done from shapes you derive yourself, not from a PhysX query.
 - A `Mesh` is 16-bit indices only — **65535 vertices**, so 16383 billboard quads per
   mesh. More than that is more meshes.
+- **`new Material(string)`, a shader built from source at runtime, is gone.** There is
+  no GPU route without a bundle from a 5.4.0f3 editor.
 
 ## Two GPGPU routes, and Besiege ships a worked example of both
 
@@ -142,7 +144,10 @@ download_unity/a6d8d714de6f/TargetSupportInstaller/UnitySetup-Linux-Support-for-
 ```
 
 Prefer the native Linux editor on Linux: it removes Wine, and its bundles are
-built for the graphics API the player actually runs.
+built for the graphics API the player actually runs. The `.deb` does not install on
+Debian 13, though: it depends on `gconf-service`, `libgconf-2-4` and `libpng12-0`,
+all gone, `lib32gcc1`, renamed, and `npm`. Unpack it with `dpkg-deb -x` and supply
+the libraries, or use the Wine route.
 
 **And a 5.4 editor will not build anything until it is activated.** Batch mode
 stops at
@@ -235,6 +240,38 @@ array of positions, read back a small array of forces, apply them with
 what the game itself already pays; keep the buffer that crosses back proportional to
 the number of *bodies*, never the number of particles.
 
+### Ground you deform, under a collider PhysX cooks
+
+A mod simulation that machines stand on (sand, snow, soft terrain as a height field) usually gets a
+`MeshCollider` cooked from its heights, and then **the body rests on the collider, not on the data**.
+Cooking costs, so it lags the data — recooked a few chunks a step, and only past a tolerance, because a
+recooked collider drops the contacts PhysX was holding (static friction among them: a parked machine
+slides as if on ice). So anything the mod does to the heights under a body is invisible to the body for
+a step or several. Two consequences that cost something to find:
+
+- **Take thin layers, not columns.** A spinning wheel that dug its whole column 14 cm down at once then
+  hung over the hole, out of the mod's "touching" distance, until the collider caught up: one bite, a
+  pause, another bite, and no stream of sand. Removing a layer a few centimetres thick each step keeps
+  the body in touch while the collider follows.
+- **Test with the lag in.** A headless test that put the wheel straight back on the data every step
+  showed a fine roost; with the wheel on the highest point under its footprint and the heights it
+  stood on three steps old, what it threw dropped by three quarters. Model the collider, not the data.
+- **Count "under the body" from the contacts, not the heights.** What the collider reported a load on in
+  the last few physics steps is what the body stands on, wherever the data now puts the surface; a body
+  within a hand's breadth over such a cell is touching it. That one rule turned a wheel that stopped
+  digging the moment the sand went down into one that dug and threw continuously.
+- **Slippery ground is a `PhysicMaterial` with `frictionCombine = Minimum`.** Unity picks the combine
+  mode of the pair by priority, Average < Minimum < Multiply < Maximum, so a ground material on Average is
+  averaged with the block's own friction (a mud collider at 0.2 under a grippy tyre came out at most of
+  tarmac's), and one on Minimum gives its own low value — unless the block's material is Multiply or
+  Maximum, which outranks it. Log what the touching blocks use (`Collision.collider.sharedMaterial`) rather
+  than assume.
+
+The force PhysX pushes back with (`Collision.impulse` over `fixedDeltaTime`, normal component only —
+the full impulse includes a powered wheel's drive) is what to sink the ground under, and the sink rate
+must be fast: at 0.6 m/s a wheel crossing a 12 cm cell in a few hundredths of a second left a rut of a
+few centimetres whatever it weighed.
+
 ## Threads are allowed, and that is where CPU headroom is
 
 `System.Threading` is not on the blacklist — no prefix matches it — and
@@ -258,6 +295,53 @@ whole cost, which is the same shape as on any runtime. Take the measurement on t
 target machine before sizing anything; the number above is calibration, not a
 promise.
 
+### What a thread pool does in the mod, measured
+
+`ThreadPool.QueueUserWorkItem`, `Interlocked` and `ManualResetEvent` work in a mod (no blacklist hit),
+so a loop over independent pieces — a chunk's mesh, a chunk's columns — can be shared between the
+main thread and `ProcessorCount - 1` helpers while the main thread waits. Measured on a 6-core
+desktop: a sand chunk's mesh at 3.1 ms for 36 chunks on one thread, 0.7 ms on six; a brush's columns added to at 0.12 µs a column on one thread and 0.05 µs on six.
+Five things that cost something to learn:
+
+- **A cache that threads share is a bug.** A "last chunk looked up" cache (chunk, x, z as three
+  fields) was added to a lookup the solver's worker threads call, and one height in six came back
+  from the wrong chunk: the three fields were written by different threads and read torn. Nothing
+  threw; sand stopped being thrown up and the game stuttered. Per-thread (`[ThreadStatic]`, keyed
+  by the owner and a generation) is correct. Test any shared lookup by reading from six threads and
+  comparing with one.
+- **A `[ThreadStatic]` read is dear on this Mono — read one, not five.** The per-thread cache above
+  was five thread-static fields (chunk, owner, x, z, generation), each read on every lookup, and that
+  cost more than the dictionary lookup it was saving: a loop of 60,000 lookups a frame spent 720 ms
+  over a four-second test going through it and 110 ms without. Put the fields in one small class and
+  keep a single `[ThreadStatic]` reference to it (created on first use per thread); in a hot loop on
+  one thread, look the chunk up once per row segment yourself and do not go through the cache at all.
+- **Even one `[ThreadStatic]` read is too dear in the main thread's hottest loops — so skip it when no other
+  thread is running.** If all your threading is fork-join from the main thread (dispatch, help, wait for the
+  last item), then outside those sections only the main thread touches the data, and a plain instance field
+  serves as its cache. Count the sections (`Interlocked.Increment` before dispatching, `Decrement` after the
+  wait, in a `finally`) and pick the cache by that count: `Running > 0 ? perThread() : mainCache`. A sand
+  model's slump check (about forty chunk lookups a column) dropped from 53 to 32 ms a second of driving. Any
+  thread of your own that reads the data outside such a section must count itself too, or it shares the
+  main thread's cache and reads torn entries.
+- **Wait for the items, on an event — not for the helpers, and not on a monitor.** Two stalls of a
+  tenth of a second, both from the obvious pattern (queue N helpers, run items on the caller too,
+  `lock` + `Monitor.Wait` until a counter of finished helpers reaches zero, the last helper
+  `lock` + `PulseAll`):
+  the caller waited for every helper to *start*, though it had often done every item alone before
+  the pool woke one; and, with that fixed, the helper finishing the last item now and then sat
+  100 ms (to the millisecond, every time) taking the lock to pulse while the caller was in `Wait`.
+  Two or three 100 ms frames in four seconds of a 60 fps loop. What works: per-call state in a small
+  object the queued delegate captures (a helper that starts late finds the items gone and leaves,
+  never touching the next call); an `Interlocked` counter of finished *items*; the thread that
+  finishes the last one — the caller included — `Set`s a static `ManualResetEvent` that the caller
+  `Reset` before queueing and always `WaitOne`s on, so a `Set` can never belong to an earlier call.
+- **Split the work so no two threads write the same bytes**, and read across the split only what a
+  stale value cannot hurt. A chunk's columns are added to on one thread each; the heights read from
+  the neighbouring chunk may be a step old, which a stability check with a tolerance absorbs.
+- **Mono's own teardown crashes under a parked pool thread.** An offline host that calls
+  `mono_jit_cleanup` after the program has finished segfaulted when the program had used the pool.
+  Skip the cleanup in the host (`_exit` after flushing); the game never calls it.
+
 ## No native code, so no physics library
 
 Restating [01-loader-and-blacklist.md](01-loader-and-blacklist.md) where it bites
@@ -265,6 +349,60 @@ hardest: `[DllImport]` is refused by its own check in `AssemblyScanner`, and
 `System.Diagnostics` being blacklisted removes `Process.Start` as well. FleX, Bullet,
 PhysX extensions, anything with a `.so` or a `.dll` behind it — not reachable by any
 route. A solver a mod wants is a solver a mod writes, in C# 4 or in a shader.
+
+## A wheel's dust cloud is reachable
+
+Besiege's wheels carry `WheelSmoke` (on the block's own GameObject), whose private
+`ParticleSystem` field is a child of the block from the prefab. `FixedUpdate` moves it
+to the wheel's ground contact and emits from it by hand — `Emit(EmitParams, n)`, with
+`n` from `emission.rate.constant × fixedDeltaTime`, and `EmitParams` setting position
+and velocity only, so colour, size and lifetime come from the system.
+
+So the cloud is a `ParticleSystem` somewhere under the block — not necessarily on the
+`WheelSmoke`'s own object, and not the only one (a wheel carries others, its fire
+among them). Find it as the one the wheel has moved away from the block's middle, down
+to the ground. Its transform is where the wheel last touched, and `startColor`,
+`startSize`, `startLifetime` and `emission.rate` (Unity 5.4: assign the
+`EmissionModule` to a local, set `rate`) change the next puffs.
+
+On the desert island level (4) its `Awake` tints the renderer's material `_TintColor`
+brown, so a light `startColor` comes out dark; the neutral-grey tint in
+[20](20-rendering-and-cameras.md) ("Recolouring a game particle system") is the fix.
+It also picks its rolling sound from `PhysicMaterialGroup.Convert(collider.material)`
+of what it touches — a mod ground's material decides whether it sounds like sand or
+grass.
+
+## Emitting into Unity's own particle system, and leaving the game's alone
+
+On this Unity (5.4) a `ParticleSystem` made from code is configured on the system itself — no `main` module
+yet: `simulationSpace`, `maxParticles`, `startSpeed`/`startSize`/`startLifetime`, `gravityModifier`,
+`playOnAwake`, `loop`, then `emission.enabled = false` and `shape.enabled = false` for a system you only feed
+by hand. Each particle then comes with its own place, speed, size, life and colour through
+`Emit(ParticleSystem.EmitParams, 1)`; everything that changes it over its life is a module
+(`limitVelocityOverLifetime` with `limit` and `dampen` for air, `sizeOverLifetime`, `colorOverLifetime` with a
+`Gradient` for a fade). `GeometryUtility.CalculateFrustumPlanes` has only the allocating overload. The
+renderer's `maxParticleSize` (a fraction of the screen, 0.5 by default) shrinks a big puff as the camera comes
+near: raise it. **`Emit(EmitParams, n)` does not keep to `maxParticles`** here: a system
+capped at 6,000 held over 10,000. Keep the cap yourself (read `particleCount` once a frame
+and count what you emit). A few thousand soft puffs this way cost the CPU next to nothing,
+where building them into a mesh in managed code every frame cost milliseconds.
+
+**To dress a game effect in your own look without recolouring what is already in the air**, keep the game's
+system emitting but make what it emits invisible and brief (`startColor` alpha 0, a short `startLifetime`) —
+start values only touch particles made from then on — and read `particleCount` to know when and where it is
+emitting (it lives at the effect's transform); emit your own particles there into a system of your own. A
+wheel's `WheelSmoke` decides for itself when to emit (grounded, over its speed cut-off); its public
+`smokeActive` is only its on/off setting.
+
+## A dense spatial grid over every particle's bounds
+
+A counting-sort grid (cell start indices, one int per cell) is cheap while the particles are bunched and
+ruinous when a few are far away: the grid covers the bounds of all of them, and clearing, summing and
+copying its cells every substep is work in the volume, not in the count. Four grains 80 m from the rest made
+a sand solver's grid millions of cells and its step twenty times slower. Fall back to a sparse layout past a
+few dozen cells a particle: sort the particles by cell index (`Array.Sort(keys, items)`), note where each row of
+cells begins, and find a row by binary search. The same neighbour order survives, so slab-parallel solving
+keeps working.
 
 ## Checked
 

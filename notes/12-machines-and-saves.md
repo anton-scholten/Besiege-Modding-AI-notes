@@ -163,6 +163,19 @@ answer about itself. Walk the four edges as a loop rather than taking the nodes 
 order they're named: the file doesn't promise an order, and a fan of triangles through
 four corners in the wrong order is a bow tie.
 
+**A build surface collides as thin slabs, not as its mesh.** `BuildSurface.GenerateColliders`
+makes, under `simColliderParent`, one `BoxCollider` per quad of a curved surface (`AddCollider`,
+children named `coll…`), each as thick as `GetColliderThickness()` — the thickness slider, a few
+centimetres. A planar surface (`SurfaceInfo.EdgesPlanar`, `UseMeshColliderInSim`) instead gets a
+convex `MeshCollider` on a generated "Planar Mesh Collider" slab, and the build-mode collider is
+a separate `meshCollider` whose `convex` is flipped round cloning (`OnBeforeClone`/`OnAfterClone`).
+Two consequences for a mod that collides its own things with blocks: the slab's mesh bounds in the
+block's frame are not the slab — the block's axes follow a corner, not the plane, so a tilted
+surface's local AABB is a box as tall as the surface is long — and anything resolved by "nearest
+face" against a slab that thin is pushed out the wrong side once it is past the middle, and out
+the edge into the seam where two surfaces meet. Fit the plane from the mesh's vertices, and push
+out the face the thing came from.
+
 ## Loading a machine from a mod
 
 `Machine.Active().LoadMachineInfo(info, resetUndoActions)` is the same call the load
@@ -304,6 +317,34 @@ Check `AdvancedBlockEditor.Instance.selectionController` is there **before** you
 start, not after: a run that reads blocks into your own state and then cannot
 remove them leaves the machine holding both.
 
+## Your own steps in the machine's undo history
+
+A mod can put changes of its own — terrain it paints, say — into the machine's history, so the game's
+undo and redo buttons and keys take them back in order with block edits. Subclass `UndoAction` (its
+constructor is reachable from a mod, and `Undo()` / `Redo()` are abstract `bool`s) and add it with
+`Machine.Active().UndoSystem.AddAction(action)`, which, like any new edit, drops the redo tail past
+`snapIndex`.
+
+- **Leave every change flag false** (`changesTransform`, `changesCount`, `changesOBM`,
+  `changesParameters`). `PreUndoAction` / `PostUndoAction` read only those, and with them off do nothing
+  for the machine: no interpolation reset, no cluster rebuild, no `GetBlocks()` call. `info` and `machine`
+  may stay null.
+- **Returning false means "nothing done, try the next one".** `UndoSystem.Undo` loops back through
+  `undoList` until an action returns true (and `Redo` forward). A step that can no longer apply — its
+  world replaced since — returns false and the player's press goes to the step before it, rather than
+  doing nothing.
+- **Never add an action while one is being undone or redone.** `AddAction` logs
+  `[UndoSystem]: trying to create undo while undoing.` (the static `processing` flag) and still adds it,
+  after cutting the list at `snapIndex` — the redo of what was just undone is gone.
+- **Add a long edit's step when it begins, not when it ends.** An edit that takes time to finish (a brush
+  stroke whose pile settles over the next frames) added at its end lets anything the player does in
+  between — a block placed — go in ahead of it, and undo takes them back out of order. Add the step empty
+  at the start and fill it at the end; an `Undo()` that finds it still open finishes the edit first, then
+  undoes it. That also never adds an action mid-undo.
+- **Undo is building-only.** `Undo()` returns early unless `CanInteract()`: an active machine, no batch
+  change, `stopHotkeys` down, and `Machine.ReadyForSim`. Steps recorded during a run are steps the player
+  cannot reach until it ends, so don't record them.
+
 ## An undo closes the block mapper, and your panel with it
 
 `UndoSystem.Undo` and `Redo` both end with `CheckOpenBlockMapper`, which calls
@@ -384,3 +425,69 @@ against a generator — two things make that far less work than it sounds:
 
 What you don't get is a thumbnail — the game renders those itself when it saves — so the
 machine shows a blank tile in the load screen until the player saves it again.
+
+## Steering the save and load screens, and changing what they write
+
+Read from the IL; the Sand mod's sand files are built on it. Everything needed is public:
+
+- **Into a folder of your own.** `view.Open(FileBrowserType.LocalMachines, isSaveMenu, false)`, then on the
+  following frames `view.Controller.Collection` (`AbstractObjectCollection`): `GetRoot()`, `CurrentFolder`,
+  and `VirtualFolder.GetObjects()` to find a child by `Name`; `view.Controller.CreateFolder(name)` makes one
+  in the current folder (and tells the view), `view.Controller.OpenFolder(folder)` goes there (but to
+  *open* the screen in your folder, prime its memory instead — below). The screen
+  fills itself over a frame or two after `Open`, so retry rather than doing it in the same frame.
+  `AbstractObjectCollection.CreateFolder` itself is the base class's, which only returns `CreateFailed`;
+  go through the controller.
+- **`XmlSaver.OnSave` runs before anything is written.** `XmlSaver.Save(MachineInfo, path)` invokes the
+  `OnSave(MachineInfo)` event first, on the `MachineInfo` that `CreateMachineInfo(true)` just built (a copy,
+  not the live machine), then writes it. A handler can add to `MachineData` or take blocks out of `Blocks`,
+  and the file holds what it left. Subscribing (`add_OnSave`) passes the blacklist; only `Save` itself is
+  forbidden. `Events.OnMachineSave` is the same moment wrapped in a `PlayerMachineInfo`.
+- **`XmlLoader.OnLoad` runs as the file is read, before the game decides what to do with it.**
+  `MachineFileBrowserController.LoadFile` parses first (`GetMachineInfo`, which ends in
+  `LoadFromXmlDocument`, which raises `OnLoad`) and only then branches on load or "add to machine"
+  (`LoadAdditive`), so the handler cannot tell which the player pressed. "Add to machine" drops the first
+  block when `MachineData` has `SavedWithoutStartingBlock = true`, so a file of one starting block with
+  that key adds nothing; a plain load replaces the machine with it. To keep the player's machine through
+  a plain load, take `Machine.Active().CreateMachineInfo(true)` in the handler and, once
+  `Machine.IsLoadingMachine` is false again, `LoadMachineInfo(it, false)` if the machine is now that one
+  block.
+
+**The screen reopens where the last save or load happened, and that is a field you cannot set directly.**
+`FileBrowserController.OnFileSaved` and `OnFileLoaded` call `view.SetRestoreFolder(false)`, which copies
+the view's private `currentFolder` into `restoreFolder` and the browser type into `lastBrowserType`; the
+game's own buttons open with `Open(type, isSave, restore: true)`, which goes back there when the type
+matches. So a mod that saves or loads in a folder of its own leaves the game's buttons opening in that
+folder. To give them back their folder: remember it when you open (open with `restore: true` and read
+`Controller.Collection.CurrentFolder` before navigating away), and after your save, in one frame,
+`Open(type, false, false)`, `Controller.OpenFolder(remembered)` (which runs `Generate` and sets
+`currentFolder`), `SetRestoreFolder(false)`, `Close()` — nothing of it is drawn. The view's
+`Generate(VirtualFolder)` is public too, but called while the view is inactive it starts a coroutine on an
+inactive object, which Unity logs as an error.
+
+**To open the screen in a folder of your own, prime its memory instead of steering it after.** Taking the open
+screen into another folder (`Controller.OpenFolder`) was reported not to hold in game — with a machine loaded
+it came back to the machine's folder. The priming below is the fix, not yet confirmed in game either. What holds is the game's own path: set `restoreFolder` and
+`restoreObject` and open with `restore: true`. In one frame: `Open(type, isSave, false)`, `OpenFolder(yours)`,
+optionally `view.SelectObject(file)` (and `FileBrowserView.FieldValues[folder.ObjectPath.ToString()] = file`,
+the public static map from a folder's path to its selected file, which `Generate` re-selects whenever the
+folder is shown), `SetRestoreFolder(false)` (folder = the view's current folder, object = its selected
+object), `Close()`; then `Open(type, isSave, true)` for real. A selected file's name goes into the name box,
+so this is also how to pre-fill the name. Read the name box itself with
+`view.GetComponentsInChildren<Selectors.TextHolder>(false)` and `ValueText` (the field holding it is private).
+A file's `IVirtualObject.Name` is its name without `.bsg`.
+
+**`AbstractObjectCollection.GetRoot()` is a new, empty folder every call.** `LocalFileCollection.GetRoot` builds a
+`LocalFolder` for the root path each time it is asked, with nothing in it until its `Open()` reads the disk
+(`LocalFolder.Open` is synchronous: `Clear`, list the directory, `AddRange`). Search it as it comes and every
+folder is missing; compare it with `CurrentFolder` by reference and they never match. Call `Open()` on it
+first (on the `LocalFolder`, whose `Open` is the one that reads), and compare folders by `ObjectPath.Path`.
+
+**The thumbnail is taken after the save returns**, and can be re-aimed: see
+[20](20-rendering-and-cameras.md) ("Re-aiming the game's thumbnail camera").
+
+**The game loads machine files for itself, and `XmlLoader.OnLoad` fires for each.** Saving over an existing file
+first loads the old one (`MachineAutosaveController.VersionMachine`, to copy it into `AutoSave` as a version);
+`AddPiece`'s auto-load at start, `BesiegeContentHelper` and the performance test load files too. A handler that
+acts on mod data in a loaded file must check that the player is loading — the load screen open and not a save
+menu — or the old file's data lands in the middle of a save.
